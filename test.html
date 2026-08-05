@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+  <meta charset="UTF-8">
+  <title>KOKALabel报价系统 - 单元测试</title>
+  <style>
+    body {{ font-family: monospace; padding: 20px; max-width: 800px; margin: 0 auto; }}
+    .pass {{ color: #059669; }}
+    .fail {{ color: #dc2626; font-weight: bold; }}
+    .test {{ padding: 4px 0; border-bottom: 1px solid #eee; }}
+    #summary {{ margin-top: 20px; font-size: 18px; font-weight: bold; }}
+  </style>
+</head><body>
+  <h1>KOKALabel报价系统 - 单元测试</h1>
+  <div id="results"></div>
+  <div id="summary"></div>
+
+  <script src="js/data.js"></script>
+  <script>
+    // 简单测试框架
+    const tests = [];
+    let passed = 0, failed = 0;
+
+    function test(name, fn) {{
+      tests.push({{ name, fn }});
+    }}
+
+    function assert(condition, message) {{
+      if (!condition) throw new Error(message || "断言失败");
+    }}
+
+    function assertApprox(actual, expected, tolerance, message) {{
+      if (Math.abs(actual - expected) > tolerance) {{
+        throw new Error(message || `期望 ${{expected}}, 实际 ${{actual}}`);
+      }}
+    }}
+
+    // -------------------- 测试用例 --------------------
+
+    test("parseDecimalPlaces: 0 值有效", () => {{
+      assert(parseDecimalPlaces(0) === 0, "0 应该返回 0");
+      assert(parseDecimalPlaces("0") === 0, "'0' 应该返回 0");
+    }});
+
+    test("parseDecimalPlaces: 空值回退 2", () => {{
+      assert(parseDecimalPlaces("") === 2, "空字符串应回退 2");
+      assert(parseDecimalPlaces(null) === 2, "null 应回退 2");
+      assert(parseDecimalPlaces(undefined) === 2, "undefined 应回退 2");
+    }});
+
+    test("parseDecimalPlaces: 范围限制 0-4", () => {{
+      assert(parseDecimalPlaces(5) === 4, "5 应被限制为 4");
+      assert(parseDecimalPlaces(-1) === 0, "-1 应被限制为 0");
+    }});
+
+    test("calcBleedArea: 含出血面积计算", () => {{
+      // (55 + 3) * (30 + 3) = 58 * 33 = 1914
+      assert(calcBleedArea(30, 55) === 1914, "30x55 应为 1914");
+      assert(calcBleedArea(100, 100) === 10609, "100x100 应为 10609");
+    }});
+
+    test("calcBleedArea: 超过 10000 返回错误", () => {{
+      const result = matchSpec(PAPER_CONFIG[0], 10001);
+      assert(result.error === true, "面积超过 10000 应返回错误");
+    }});
+
+    test("escapeHtml: XSS 转义", () => {{
+      assert(escapeHtml("<script>alert(1)</script>") === "&lt;script&gt;alert(1)&lt;/script&gt;", "script 标签应被转义");
+      assert(escapeHtml('"onerror="alert(1)') === "&quot;onerror=&quot;alert(1)", "引号应被转义");
+    }});
+
+    test("hasExactTier: 精确匹配档位", () => {{
+      const prices = {{ 500: 20, 1000: 25 }};
+      assert(hasExactTier(prices, 500) === true, "500 档位存在");
+      assert(hasExactTier(prices, 2000) === false, "2000 档位不存在");
+    }});
+
+    test("GROUP_META: 架构元信息", () => {{
+      assert(GROUP_META.id === "group1", "小组 ID 应为 group1");
+      assert(PRICE_LIST_META.groupId === GROUP_META.id, "报价表应属于当前小组");
+    }});
+
+    test("PAPER_CONFIG: 默认 9 张纸", () => {{
+      assert(PAPER_CONFIG.length === 9, "默认应有 9 张纸");
+    }});
+
+    // -------------------- 运行测试 --------------------
+
+    window.addEventListener('load', () => {{
+      const results = document.getElementById('results');
+      const summary = document.getElementById('summary');
+
+      tests.forEach(t => {{
+        const div = document.createElement('div');
+        div.className = 'test';
+        try {{
+          t.fn();
+          div.innerHTML = `<span class="pass">✓</span> ${{t.name}}`;
+          passed++;
+        }} catch (e) {{
+          div.innerHTML = `<span class="fail">✗</span> ${{t.name}} <span class="fail">${{e.message}}</span>`;
+          failed++;
+        }}
+        results.appendChild(div);
+      }});
+
+      summary.innerHTML = `<span class="${{failed === 0 ? 'pass' : 'fail'}}">通过 ${{passed}} / 失败 ${{failed}} / 共 ${{tests.length}}</span>`;
+    }});
+  </script>
+</body></html>
