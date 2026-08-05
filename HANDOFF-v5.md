@@ -13,6 +13,8 @@
 | 架构 | 多文件（CSS / JS / HTML 分离） |
 | GitHub 仓库 | `KOKACODA/tag-pricing-calculator-v5`（Public） |
 | 线上地址 | https://tag-pricing-calculator-v5.pages.dev |
+| 预览地址 | https://e71782e4.tag-pricing-calculator-v5.pages.dev |
+| CF Account ID | a4fdb353836f801c65072d7810fbcc32 |
 | 部署方式 | GitHub push → Cloudflare Pages 自动构建 |
 | 旧版仓库 | `KOKACODA/tag-pricing-calculator`（v4.3，保留不动） |
 | 用户称呼 | Master |
