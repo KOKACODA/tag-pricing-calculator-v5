@@ -1463,9 +1463,9 @@ const DEFAULT_SHIPPING_CONFIG = SHIPPING_CONFIG.map(s => ({ ...s, basePrices: { 
  * 客户等级与毛利系数配置。
  */
 const DEFAULT_CUSTOMER_LEVELS = [
-  { id: "level1", name: "普通客户", coefficient: 1.3 },
+  { id: "level1", name: "普通客户", coefficient: 1.2 },
   { id: "level2", name: "优质客户", coefficient: 1.15 },
-  { id: "level3", name: "大客户", coefficient: 1.05 }
+  { id: "level3", name: "大客户", coefficient: 1.1 }
 ];
 
 /**

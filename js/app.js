@@ -1022,6 +1022,8 @@ function renderLevelSettings() {
         showToast("至少保留一个客户等级");
         return;
       }
+      const levelName = CUSTOMER_LEVELS[index]?.name || "该等级";
+      if (!confirm(`确定要删除客户等级「${levelName}」吗？\n\n删除后不可撤销，如需恢复可点击「恢复默认」。`)) return;
       CUSTOMER_LEVELS.splice(index, 1);
       saveToStorage("customerLevels", CUSTOMER_LEVELS);
       renderLevelSettings();
@@ -1099,6 +1101,25 @@ function resetToDefaults() {
   updateDefaultRopeOptions && updateDefaultRopeOptions();
   onCalculate();
   showToast("已恢复默认配置（含工艺 单面/双面 后缀）");
+}
+
+/**
+ * 一键恢复全局默认设置：清除浏览器中所有本地配置并刷新页面。
+ * 清除范围：纸张 / 工艺 / 吊绳 / 客户等级 / 公司信息 / 个人偏好（appProfile）。
+ * 保留范围：报价历史、本地快照。
+ */
+function resetAllLocalSettings() {
+  const confirmMsg = "⚠️ 确定要恢复全局默认设置吗？\n\n将清除以下本地配置：\n• 纸张配置（9 张1号报价表）\n• 工艺配置（含 烫金/UV/鸡眼/凹凸 等）\n• 吊绳配置\n• 客户等级与毛利系数\n• 公司信息与个人偏好\n\n报价历史与本地快照不受影响。\n\n此操作不可撤销，恢复后页面将自动刷新。";
+  if (!confirm(confirmMsg)) return;
+
+  // 清除所有本地配置 key（保留 history 和 snapshots）
+  const keysToWipe = ["paperConfig", "craftConfig", "ropeConfig", "customerLevels", "appProfile"];
+  keysToWipe.forEach(k => {
+    try { localStorage.removeItem("tagPricing_" + k); } catch (e) { /* 忽略 */ }
+  });
+
+  showToast("已恢复全局默认设置，正在刷新…");
+  setTimeout(() => location.reload(), 600);
 }
 
 function loadProfileToUI() {
@@ -2556,6 +2577,8 @@ function bindEvents() {
   if (els.importDataBtn) els.importDataBtn.addEventListener("click", () => els.importFile.click());
   if (els.importFile) els.importFile.addEventListener("change", e => importFullData(e.target.files[0]));
   if (els.resetToDefaultsBtn) els.resetToDefaultsBtn.addEventListener("click", resetToDefaults);
+  const resetAllBtn = document.getElementById("resetAllSettingsBtn");
+  if (resetAllBtn) resetAllBtn.addEventListener("click", resetAllLocalSettings);
   if (els.exportLocalBackupBtn) els.exportLocalBackupBtn.addEventListener("click", exportLocalBackup);
   if (els.importLocalBackupBtn) els.importLocalBackupBtn.addEventListener("click", () => els.importLocalBackupFile.click());
   if (els.importLocalBackupFile) els.importLocalBackupFile.addEventListener("change", e => importLocalBackup(e.target.files[0]));
