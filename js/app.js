@@ -286,6 +286,15 @@ const els = {
   resShippingPrice: document.getElementById("resShippingPrice"),
   resCost: document.getElementById("resCost"),
   resWarnings: document.getElementById("resWarnings"),
+  // 临时毛利系数 & 邮费快速修改
+  customCoeffBar: document.getElementById("customCoeffBar"),
+  customCoeffInput: document.getElementById("customCoeffInput"),
+  customPriceCard: document.getElementById("customPriceCard"),
+  shippingOverrideBar: document.getElementById("shippingOverrideBar"),
+  shippingOverrideInput: document.getElementById("shippingOverrideInput"),
+  shippingOverrideClear: document.getElementById("shippingOverrideClear"),
+  shippingOverrideLabel: document.getElementById("shippingOverrideLabel"),
+  shippingOverrideCards: document.getElementById("shippingOverrideCards"),
   searchInput: document.getElementById("searchInput"),
   priceTable: document.getElementById("priceTable"),
   craftTable: document.getElementById("craftTable"),
@@ -773,6 +782,88 @@ function onCalculate() {
     });
     els.tierQuickSwitch.style.display = "flex";
   }
+
+  // -------------------- 临时毛利系数 & 邮费快速修改 --------------------
+  // 缓存本次计算结果供临时系数/邮费修改使用
+  _lastResult = result;
+
+  // 显示临时毛利系数输入栏
+  if (els.customCoeffBar) {
+    els.customCoeffBar.style.display = "flex";
+    renderCustomCoeffCard();
+  }
+
+  // 显示邮费快速修改栏
+  if (els.shippingOverrideBar) {
+    const hasShipping = result.shippingPrice != null;
+    els.shippingOverrideBar.style.display = "flex";
+    // 如果邮费输入框为空且当前有邮费，预填原始邮费
+    if (hasShipping && els.shippingOverrideInput && !els.shippingOverrideInput.value) {
+      // 不自动填充，让用户主动输入
+    }
+    renderShippingOverrideCards();
+  }
+}
+
+// 缓存上一次计算结果
+let _lastResult = null;
+
+/**
+ * 渲染临时毛利系数报价卡片
+ */
+function renderCustomCoeffCard() {
+  if (!els.customPriceCard || !_lastResult) return;
+  const raw = els.customCoeffInput ? els.customCoeffInput.value.trim() : "";
+  const coeff = parseFloat(raw);
+  if (!raw || isNaN(coeff) || coeff < 1) {
+    els.customPriceCard.style.display = "none";
+    els.customPriceCard.innerHTML = "";
+    return;
+  }
+  const price = _lastResult.cost * coeff;
+  els.customPriceCard.innerHTML = `
+    <div class="price-card custom-coeff">
+      <div class="level-name">临时系数 ${coeff}</div>
+      <div class="level-price">${_lastResult.costIncomplete
+        ? '<span class="price-missing">部分缺价</span>'
+        : formatMoney(price) + '<span class="unit">元</span>'}</div>
+    </div>
+  `;
+  els.customPriceCard.style.display = "flex";
+}
+
+/**
+ * 渲染邮费修改后的报价卡片（3 个默认等级，基于修改后的邮费重算）
+ */
+function renderShippingOverrideCards() {
+  if (!els.shippingOverrideCards || !_lastResult) return;
+  const raw = els.shippingOverrideInput ? els.shippingOverrideInput.value.trim() : "";
+  const newShipping = parseFloat(raw);
+  // 没输入或无效值时隐藏
+  if (!raw || isNaN(newShipping) || newShipping < 0) {
+    els.shippingOverrideCards.style.display = "none";
+    els.shippingOverrideLabel.style.display = "none";
+    els.shippingOverrideCards.innerHTML = "";
+    return;
+  }
+  // 用修改后的邮费重算成本
+  const origShipping = _lastResult.shippingPrice || 0;
+  const newCost = _lastResult.cost - origShipping + newShipping;
+  const costIncomplete = _lastResult.costIncomplete;
+  // 渲染 3 个默认等级报价卡片
+  els.shippingOverrideCards.innerHTML = _lastResult.pricesByLevel.map((item, idx) => {
+    const newPrice = newCost * item.coefficient;
+    return `
+      <div class="price-card${idx === 0 ? " highlight" : ""}">
+        <div class="level-name">${escapeHtml(item.levelName)}</div>
+        <div class="level-price">${costIncomplete
+          ? '<span class="price-missing">部分缺价</span>'
+          : formatMoney(newPrice) + '<span class="unit">元</span>'}</div>
+      </div>
+    `;
+  }).join("");
+  els.shippingOverrideLabel.style.display = "block";
+  els.shippingOverrideCards.style.display = "flex";
 }
 
 function clearResult() {
@@ -794,6 +885,14 @@ function clearResult() {
     els.tierQuickSwitch.style.display = "none";
   }
   els.priceCards.innerHTML = "";
+  // 清理临时毛利系数 & 邮费快速修改
+  _lastResult = null;
+  if (els.customCoeffBar) els.customCoeffBar.style.display = "none";
+  if (els.customPriceCard) { els.customPriceCard.style.display = "none"; els.customPriceCard.innerHTML = ""; }
+  if (els.shippingOverrideBar) els.shippingOverrideBar.style.display = "none";
+  if (els.shippingOverrideInput) els.shippingOverrideInput.value = "";
+  if (els.shippingOverrideLabel) els.shippingOverrideLabel.style.display = "none";
+  if (els.shippingOverrideCards) { els.shippingOverrideCards.style.display = "none"; els.shippingOverrideCards.innerHTML = ""; }
 }
 
 // -------------------- 1号报价表渲染 --------------------
@@ -2479,6 +2578,23 @@ function bindEvents() {
 
   // 点击页面其他区域关闭纸张材质下拉
   document.addEventListener("click", () => closeAllPaperDropdowns());
+
+  // 临时毛利系数：输入时实时渲染报价卡片（不触发 onCalculate）
+  if (els.customCoeffInput) {
+    els.customCoeffInput.addEventListener("input", renderCustomCoeffCard);
+  }
+
+  // 邮费快速修改：输入时实时渲染修改后报价卡片
+  if (els.shippingOverrideInput) {
+    els.shippingOverrideInput.addEventListener("input", renderShippingOverrideCards);
+  }
+  // 清除邮费修改
+  if (els.shippingOverrideClear) {
+    els.shippingOverrideClear.addEventListener("click", () => {
+      if (els.shippingOverrideInput) els.shippingOverrideInput.value = "";
+      renderShippingOverrideCards();
+    });
+  }
 
   // 禁用所有 number 类型输入框的鼠标滚轮调整，防止误操作
   document.addEventListener("wheel", e => {

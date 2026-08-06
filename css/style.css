@@ -591,6 +591,118 @@
       font-weight: 600;
     }
 
+    /* ===================== 报价区分标签 ===================== */
+    .price-section-label {
+      font-size: 13px;
+      color: var(--text-secondary);
+      font-weight: 600;
+      margin-top: 14px;
+      margin-bottom: 6px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ===================== 临时毛利系数 ===================== */
+    .custom-coeff-bar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 10px 0;
+      margin-top: 10px;
+    }
+    .custom-coeff-label {
+      font-size: 13px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      font-weight: 600;
+    }
+    .custom-coeff-input {
+      width: 80px;
+      padding: 5px 10px;
+      border: 2px solid var(--brand);
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--brand);
+      text-align: center;
+      outline: none;
+    }
+    .custom-coeff-input:focus {
+      border-color: var(--brand-dark);
+      box-shadow: 0 0 0 3px rgba(15, 111, 196, 0.12);
+    }
+    .custom-coeff-hint {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    /* 临时系数卡片用品牌色高亮区分 */
+    .price-card.custom-coeff {
+      background: var(--brand-light);
+      border-color: var(--brand);
+      border-style: dashed;
+    }
+    .price-card.custom-coeff .level-name {
+      color: var(--brand);
+      font-weight: 700;
+    }
+    .price-card.custom-coeff .level-price {
+      color: var(--brand-dark);
+    }
+
+    /* ===================== 邮费快速修改 ===================== */
+    .shipping-override-bar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 10px 0;
+      margin-top: 14px;
+      border-top: 1px dashed var(--border);
+    }
+    .shipping-override-label {
+      font-size: 13px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      font-weight: 600;
+    }
+    .shipping-override-input {
+      width: 120px;
+      padding: 5px 10px;
+      border: 2px solid var(--success);
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--success);
+      text-align: center;
+      outline: none;
+    }
+    .shipping-override-input:focus {
+      box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.12);
+    }
+    .shipping-override-hint {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    /* 修改邮费后的报价卡片用绿色边框区分 */
+    .shipping-override-cards .price-card {
+      border-color: var(--success);
+      background: #f0fdf4;
+    }
+    .shipping-override-cards .price-card.highlight {
+      border-color: var(--success);
+      background: #dcfce7;
+    }
+    .shipping-override-cards .price-card .level-name {
+      color: var(--success);
+    }
+    .shipping-override-cards .price-card.highlight .level-name {
+      color: #047857;
+    }
+    .shipping-override-cards .price-card.highlight .level-price {
+      color: #047857;
+    }
+
     /* ===================== 1号报价表查询页 ===================== */
     .table-toolbar {
       display: flex;
