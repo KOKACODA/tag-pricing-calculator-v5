@@ -1517,6 +1517,23 @@ Object.keys(DEFAULT_CRAFT_CONFIG).forEach(k => {
 });
 // 客户等级（毛利系数）持久化到 localStorage，刷新后保留用户自定义
 let CUSTOMER_LEVELS = loadFromStorage("customerLevels", DEFAULT_CUSTOMER_LEVELS.map(l => ({ ...l })));
+
+// v5.2 迁移：旧版默认系数（1.3 / 1.15 / 1.05）自动更新为新版（1.2 / 1.15 / 1.1）
+// 仅当 localStorage 中的值与旧默认完全一致时才迁移，用户自定义值不受影响
+(function migrateCustomerLevels() {
+  const OLD_DEFAULTS = [
+    { name: "普通客户", coefficient: 1.3 },
+    { name: "优质客户", coefficient: 1.15 },
+    { name: "大客户", coefficient: 1.05 }
+  ];
+  const isOldDefault = CUSTOMER_LEVELS.length === 3 &&
+    CUSTOMER_LEVELS.every((lv, i) => lv.name === OLD_DEFAULTS[i].name && lv.coefficient === OLD_DEFAULTS[i].coefficient);
+  if (isOldDefault) {
+    CUSTOMER_LEVELS = DEFAULT_CUSTOMER_LEVELS.map(l => ({ ...l }));
+    saveToStorage("customerLevels", CUSTOMER_LEVELS);
+    console.info("[v5.2] 客户等级系数已从旧默认迁移至新默认");
+  }
+})();
 let APP_PROFILE = loadFromStorage("appProfile", {
   companyName: "KOKALabel",
   companyPhone: "",
