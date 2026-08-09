@@ -40,16 +40,19 @@ const GROUP_META = {
   name: "1号小组"
 };
 
-const PRICE_LIST_META = {
-  id: "priceList1",
-  name: "1号报价表",
-  groupId: GROUP_META.id
-};
+// 报价表组配置：支持多个报价表，吊绳/邮费按报价表隔离
+const DEFAULT_PRICE_LISTS = [
+  { id: "priceList1", name: "1号报价表", groupId: "group1" }
+];
+// EPHEMERAL_KEYS 提前定义为空数组（不拦截任何 key），供 loadFromStorage 安全调用
+const EPHEMERAL_KEYS = [];
+let PRICE_LISTS = loadFromStorage("priceLists", DEFAULT_PRICE_LISTS.map(p => ({ ...p })));
+let CURRENT_PRICE_LIST_ID = loadFromStorage("currentPriceListId", "priceList1");
 
 /**
  * Sheet 纸张报价表配置（默认配置）
  * specs 必须按面积从小到大排列；007 与 008 必须完全一致；009 与 100 保持原始数据。
- * 每张纸属于当前总报价表（PRICE_LIST_META.id）。
+ * 每张纸属于当前总报价表（通过 priceListId 字段标识）。
  */
 const DEFAULT_PAPER_CONFIG = [
   {
@@ -1355,6 +1358,8 @@ const DEFAULT_PAPER_CONFIG = [
 ]
   }
 ];
+// 给默认纸张增加 priceListId
+DEFAULT_PAPER_CONFIG.forEach(p => { p.priceListId = "priceList1"; });
 /**
  * 工艺价格配置（默认配置）：按纸张 id 绑定，key 为纸张 id，value 为该纸张支持的工艺数组。
  */
@@ -1448,11 +1453,13 @@ const DEFAULT_ROPE_CONFIG = [
   { id: "rope25", name: "黑色光胶防拆条", prices: { 500: 23.5, 1000: 47.0, 2000: 94.0, 3000: 141.0, 5000: 235.0 } },
   { id: "rope26", name: "防拆扣", prices: { 500: 5.5, 1000: 11.0, 2000: 22.0, 3000: 33.0, 5000: 55.0 } },
 ];
+// 吊绳配置为全局共享，不按报价表隔离
 
 /**
  * 邮费规则配置：含小面积折扣阈值与折扣系数。
+ * 邮费配置为全局共享，不按报价表隔离。
  */
-const SHIPPING_CONFIG = [
+let SHIPPING_CONFIG = [
   { id: "region1", name: "广东省内", basePrices: { 500: 12, 1000: 15, 2000: 20, 3000: 25, 5000: 35 }, smallAreaThreshold: 2500, discount: 0.8 },
   { id: "region2", name: "江浙沪", basePrices: { 500: 15, 1000: 20, 2000: 28, 3000: 36, 5000: 50 }, smallAreaThreshold: 2500, discount: 0.8 },
   { id: "region3", name: "其他省份", basePrices: { 500: 18, 1000: 25, 2000: 35, 3000: 45, 5000: 65 }, smallAreaThreshold: 2500, discount: 0.8 }
@@ -1469,19 +1476,13 @@ const DEFAULT_CUSTOMER_LEVELS = [
 ];
 
 /**
- * 测试阶段策略：纸张/工艺/吊绳的配置始终使用内置 DEFAULT（云端），
- * 不读写 localStorage。导入的本地数据仅在当前会话有效，刷新后自动丢弃。
- * 客户等级（毛利系数）、APP_PROFILE、报价历史、本地快照等正常持久化。
+ * 持久化策略：纸张/工艺/吊绳/邮费/客户等级/报价表组配置均读写 localStorage。
+ * 纸张按报价表隔离（通过 priceListId 字段），吊绳/邮费/客户等级为全局共享。
+ * EPHEMERAL_KEYS 已提前定义为空数组，不拦截任何 key。
  */
-const EPHEMERAL_KEYS = ["paperConfig", "craftConfig", "ropeConfig"];
-
-// 测试阶段：启动时清空旧缓存的报价配置，始终使用内置 DEFAULT（云端）
-EPHEMERAL_KEYS.forEach(k => {
-  try { localStorage.removeItem("tagPricing_" + k); } catch (e) {}
-});
 
 function saveToStorage(key, value) {
-  if (EPHEMERAL_KEYS.includes(key)) return; // 测试阶段：报价配置不持久化
+  if (EPHEMERAL_KEYS.includes(key)) return; // 空数组，不拦截任何 key
   try {
     localStorage.setItem("tagPricing_" + key, JSON.stringify(value));
   } catch (e) {
@@ -1490,7 +1491,7 @@ function saveToStorage(key, value) {
 }
 
 function loadFromStorage(key, defaultValue) {
-  if (EPHEMERAL_KEYS.includes(key)) return defaultValue; // 测试阶段：报价配置始终用 DEFAULT
+  if (EPHEMERAL_KEYS.includes(key)) return defaultValue; // 空数组，不拦截任何 key
   try {
     const raw = localStorage.getItem("tagPricing_" + key);
     return raw ? JSON.parse(raw) : defaultValue;
@@ -1505,16 +1506,55 @@ function generateId() {
 }
 
 
-// 运行时配置：测试阶段始终使用 DEFAULT，localStorage 中的报价配置被忽略
-let PAPER_CONFIG = DEFAULT_PAPER_CONFIG.map(p => ({
+// 运行时配置：从 localStorage 加载，没有则用 DEFAULT
+let PAPER_CONFIG = loadFromStorage("paperConfig", DEFAULT_PAPER_CONFIG.map(p => ({
   ...p,
   specs: p.specs.map(s => ({ ...s, prices: { ...s.prices } }))
-}));
-let ROPE_CONFIG = DEFAULT_ROPE_CONFIG.map(r => ({ ...r, prices: { ...r.prices } }));
-let CRAFT_CONFIG = {};
-Object.keys(DEFAULT_CRAFT_CONFIG).forEach(k => {
-  CRAFT_CONFIG[k] = DEFAULT_CRAFT_CONFIG[k].map(c => ({ ...c, prices: { ...c.prices } }));
-});
+})));
+// v5.4 迁移：为旧版 PAPER_CONFIG 补充 priceListId 字段（默认归 "priceList1"）
+(function migratePaperConfigPriceListId() {
+  let changed = false;
+  PAPER_CONFIG.forEach(p => {
+    if (!p.priceListId) {
+      p.priceListId = "priceList1";
+      changed = true;
+    }
+  });
+  if (changed) {
+    saveToStorage("paperConfig", PAPER_CONFIG);
+    console.info("[v5.4] 纸张配置已补充 priceListId 字段");
+  }
+})();
+let ROPE_CONFIG = loadFromStorage("ropeConfig", DEFAULT_ROPE_CONFIG.map(r => ({ ...r, prices: { ...r.prices } })));
+// v5.4 迁移：清理吊绳中遗留的 priceListId 字段（v5.3 临时实现遗留）
+(function migrateRemoveRopePriceListId() {
+  let changed = false;
+  ROPE_CONFIG.forEach(r => {
+    if ("priceListId" in r) { delete r.priceListId; changed = true; }
+  });
+  if (changed) {
+    saveToStorage("ropeConfig", ROPE_CONFIG);
+    console.info("[v5.4] 吊绳配置已清理 priceListId 字段");
+  }
+})();
+let CRAFT_CONFIG = loadFromStorage("craftConfig", {});
+if (!Object.keys(CRAFT_CONFIG).length) {
+  Object.keys(DEFAULT_CRAFT_CONFIG).forEach(k => {
+    CRAFT_CONFIG[k] = DEFAULT_CRAFT_CONFIG[k].map(c => ({ ...c, prices: { ...c.prices } }));
+  });
+}
+SHIPPING_CONFIG = loadFromStorage("shippingConfig", DEFAULT_SHIPPING_CONFIG.map(s => ({ ...s, basePrices: { ...s.basePrices } })));
+// v5.4 迁移：清理邮费中遗留的 priceListId 字段（v5.3 临时实现遗留）
+(function migrateRemoveShippingPriceListId() {
+  let changed = false;
+  SHIPPING_CONFIG.forEach(s => {
+    if ("priceListId" in s) { delete s.priceListId; changed = true; }
+  });
+  if (changed) {
+    saveToStorage("shippingConfig", SHIPPING_CONFIG);
+    console.info("[v5.4] 邮费配置已清理 priceListId 字段");
+  }
+})();
 // 客户等级（毛利系数）持久化到 localStorage，刷新后保留用户自定义
 let CUSTOMER_LEVELS = loadFromStorage("customerLevels", DEFAULT_CUSTOMER_LEVELS.map(l => ({ ...l })));
 
@@ -1545,4 +1585,70 @@ let APP_PROFILE = loadFromStorage("appProfile", {
 // 旧版配置容错
 if (typeof APP_PROFILE.defaultRope === "undefined") APP_PROFILE.defaultRope = "rope1";
 if (typeof APP_PROFILE.defaultPaperId === "undefined") APP_PROFILE.defaultPaperId = "";
+
+// ============================================================
+// ===================== 报价表组辅助函数 =====================
+// ============================================================
+
+/** 返回指定报价表的纸张子集 */
+function getPapersByPriceList(priceListId) {
+  return PAPER_CONFIG.filter(p => p.priceListId === priceListId);
+}
+/** 返回当前报价表 ID */
+function getCurrentPriceListId() {
+  return CURRENT_PRICE_LIST_ID;
+}
+/** 获取当前报价表对象 */
+function getCurrentPriceList() {
+  return PRICE_LISTS.find(p => p.id === CURRENT_PRICE_LIST_ID) || PRICE_LISTS[0];
+}
+/** 切换当前报价表 */
+function setCurrentPriceList(priceListId) {
+  if (PRICE_LISTS.find(p => p.id === priceListId)) {
+    CURRENT_PRICE_LIST_ID = priceListId;
+    saveToStorage("currentPriceListId", CURRENT_PRICE_LIST_ID);
+  }
+}
+/**
+ * 新增报价表并切换为当前报价表。
+ * @param {string} name 报价表名称
+ * @returns {string} 新报价表 ID
+ */
+function addPriceList(name) {
+  const id = "priceList_" + Date.now().toString(36);
+  PRICE_LISTS.push({ id, name, groupId: GROUP_META.id });
+  saveToStorage("priceLists", PRICE_LISTS);
+  CURRENT_PRICE_LIST_ID = id;
+  saveToStorage("currentPriceListId", CURRENT_PRICE_LIST_ID);
+  return id;
+}
+/**
+ * 删除指定报价表及其关联纸张和工艺。
+ * 不允许删除最后一个报价表。
+ * @param {string} priceListId 报价表 ID
+ * @returns {boolean} 是否删除成功
+ */
+function deletePriceList(priceListId) {
+  if (PRICE_LISTS.length <= 1) return false;
+  const idx = PRICE_LISTS.findIndex(p => p.id === priceListId);
+  if (idx === -1) return false;
+  // 删除该报价表的所有纸张
+  PAPER_CONFIG = PAPER_CONFIG.filter(p => p.priceListId !== priceListId);
+  saveToStorage("paperConfig", PAPER_CONFIG);
+  // 清理无主工艺
+  const validPaperIds = new Set(PAPER_CONFIG.map(p => p.id));
+  Object.keys(CRAFT_CONFIG).forEach(k => {
+    if (!validPaperIds.has(k)) delete CRAFT_CONFIG[k];
+  });
+  saveToStorage("craftConfig", CRAFT_CONFIG);
+  // 删除报价表
+  PRICE_LISTS.splice(idx, 1);
+  saveToStorage("priceLists", PRICE_LISTS);
+  // 如果删除的是当前报价表，切换到第一个
+  if (CURRENT_PRICE_LIST_ID === priceListId) {
+    CURRENT_PRICE_LIST_ID = PRICE_LISTS[0].id;
+    saveToStorage("currentPriceListId", CURRENT_PRICE_LIST_ID);
+  }
+  return true;
+}
 

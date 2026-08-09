@@ -5,6 +5,42 @@
 
 ---
 
+## [v5.4] - 2026-08-09
+
+### 重大新增
+- **报价表组功能**：支持多报价表管理，可切换不同报价表进行价格计算
+  - 纸张按报价表隔离（通过 `priceListId` 字段），每个报价表有独立的纸张集合
+  - 吊绳/邮费/客户等级为全局共享，不随报价表切换变化
+  - 导航栏"1号报价表查询"重命名为"报价表组查询"
+  - 报价表组查询页顶部新增报价表切换器（下拉选择 + 删除按钮）
+  - 导入 Excel = 新增一个报价表，自动解析"总报价表"行作为报价表名称
+  - 导出 Excel = 导出当前报价表的所有 Sheet
+  - 可删除当前报价表（不允许删除最后一个）
+
+### 数据架构变更
+- `PRICE_LISTS` 数组替代单例 `PRICE_LIST_META`，支持增删报价表
+- `CURRENT_PRICE_LIST_ID` 持久化到 localStorage，记录当前选中的报价表
+- `PAPER_CONFIG` 每张纸增加 `priceListId` 字段，默认 9 张归 "priceList1"
+- `ROPE_CONFIG` / `SHIPPING_CONFIG` 保持全局共享，移除 `priceListId` 字段
+- 新增 `addPriceList(name)` / `deletePriceList(id)` 辅助函数
+- `EPHEMERAL_KEYS` 为空数组，所有配置均持久化
+
+### 导入导出改造
+- `exportPaperExcel()` 仅导出当前报价表的纸张 Sheet
+- `parsePaperExcel()` 解析"总报价表"行，返回 `priceListName`
+- `importPaperExcel()` 导入时创建新报价表，追加纸张而非替换
+- `exportFullData()` / `exportLocalBackup()` 包含 `priceLists` + `currentPriceListId`
+- `importFullData()` / `importLocalBackup()` 还原完整报价表组结构
+- `createSnapshot()` 快照包含报价表组结构
+- 快照恢复同步还原报价表组、纸张、工艺配置
+
+### 修复
+- **ID 碰撞修复**：`parsePaperExcel()` 的 `usedIds` 现包含运行时 `PAPER_CONFIG` 所有 ID，防止多次导入生成相同 `paper_import_N`
+- **空报价表守卫**：`renderSheets()` / `rebuildPaperUI()` 处理空报价表时不崩溃
+- **硬编码修复**：`updateTierOptions()` 改为按当前报价表过滤；`updateDefaultPaperOptions()` 默认项显示当前报价表首张纸
+
+---
+
 ## [v5.3] - 2026-08-09
 
 ### 修复

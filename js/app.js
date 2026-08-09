@@ -150,7 +150,7 @@ function calculate(inputs) {
     const { width, length, sizeType, paperId, craftIds } = sheet;
     if (!width || !length || width <= 0 || length <= 0) return null;
 
-    const paper = PAPER_CONFIG.find(p => p.id === paperId);
+    const paper = getPapersByPriceList(CURRENT_PRICE_LIST_ID).find(p => p.id === paperId);
     if (!paper) return null;
 
     // 单张含出血面积（单张尺寸 / 展开尺寸目前均按输入长宽直接计算）
@@ -304,6 +304,8 @@ const els = {
   nextPaper: document.getElementById("nextPaper"),
   paperPageInfo: document.getElementById("paperPageInfo"),
   paperSelector: document.getElementById("paperSelector"),
+  priceListSelector: document.getElementById("priceListSelector"),
+  deletePriceListBtn: document.getElementById("deletePriceListBtn"),
   paperNotes: document.getElementById("paperNotes"),
   toast: document.getElementById("toast"),
   // 扩展页元素
@@ -362,9 +364,10 @@ let sheetsState = [];
 function renderRopeRadios() {
   const fallback = "rope1"; // 默认「普通吊绳」
   const desired = APP_PROFILE.defaultRope || fallback;
-  const hasDesired = ROPE_CONFIG.some(r => r.id === desired);
-  const checkedId = hasDesired ? desired : (ROPE_CONFIG.find(r => r.id === fallback) ? fallback : (ROPE_CONFIG[0] && ROPE_CONFIG[0].id));
-  return ROPE_CONFIG.map(r => `
+  const ropes = ROPE_CONFIG;
+  const hasDesired = ropes.some(r => r.id === desired);
+  const checkedId = hasDesired ? desired : (ropes.find(r => r.id === fallback) ? fallback : (ropes[0] && ropes[0].id));
+  return ropes.map(r => `
     <label class="rope-item">
       <input type="radio" name="rope" value="${escapeHtml(r.id)}"${r.id === checkedId ? " checked" : ""} />
       <span>${escapeHtml(r.name)}</span>
@@ -381,10 +384,11 @@ function initOptions() {
 
   // 地区：默认选中第一项（广东省内），确保页面加载后即可计算
   if (els.region) {
+    const shippingOptions = SHIPPING_CONFIG;
     els.region.innerHTML = '<option value="">请选择地区</option>' +
-      SHIPPING_CONFIG.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join("");
-    if (SHIPPING_CONFIG.length > 0) {
-      els.region.value = SHIPPING_CONFIG[0].id;
+      shippingOptions.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join("");
+    if (shippingOptions.length > 0) {
+      els.region.value = shippingOptions[0].id;
     }
   }
 }
@@ -394,9 +398,9 @@ function initOptions() {
  * @param {boolean} isInit 是否为初始化，若是则默认选中第一项。
  */
 function updateTierOptions(isInit) {
-  // 批量档位取所有1号报价表所有规格的价格档位并集，避免切换纸张时档位缺失
+  // 批量档位取当前报价表所有规格的价格档位并集，避免切换纸张时档位缺失
   const tierSet = new Set();
-  for (const paper of PAPER_CONFIG) {
+  for (const paper of getPapersByPriceList(CURRENT_PRICE_LIST_ID)) {
     for (const spec of paper.specs) {
       Object.keys(spec.prices).forEach(t => tierSet.add(Number(t)));
     }
@@ -427,12 +431,14 @@ function updateTierOptions(isInit) {
 // -------------------- 纸张设置卡片渲染 --------------------
 function renderSheets() {
   const count = parseInt(els.sheetCount.value, 10) || 2;
+  const currentPapers = getPapersByPriceList(CURRENT_PRICE_LIST_ID);
+  const defaultPaperId = currentPapers[0]?.id || "";
   const newSheets = [];
 
   for (let i = 0; i < count; i++) {
     const old = sheetsState[i];
     newSheets.push({
-      paperId: old && old.paperId ? old.paperId : "paper3",
+      paperId: old && old.paperId ? old.paperId : defaultPaperId,
       craftIds: old && old.craftIds ? old.craftIds.slice() : [],
       width: old && old.width ? old.width : "55",
       length: old && old.length ? old.length : "30",
@@ -446,10 +452,10 @@ function renderSheets() {
     const card = document.createElement("div");
     card.className = "sheet-card";
 
-    const currentPaper = PAPER_CONFIG.find(p => p.id === sheet.paperId) || PAPER_CONFIG[0];
+    const currentPaper = currentPapers.find(p => p.id === sheet.paperId) || currentPapers[0];
     // Sheet 数量 > 10 时显示编号前缀，方便快速定位
-    const showPaperIndex = PAPER_CONFIG.length > 10;
-    const paperOptions = PAPER_CONFIG.map((p, pIdx) => `
+    const showPaperIndex = currentPapers.length > 10;
+    const paperOptions = currentPapers.map((p, pIdx) => `
       <div class="paper-option${p.id === sheet.paperId ? " active" : ""}" data-sheet="${index}" data-paper="${escapeHtml(p.id)}">
         <span class="paper-name">${showPaperIndex ? (pIdx + 1) + ". " : ""}${escapeHtml(p.shortName || p.name)}</span>
         <span class="paper-desc">${escapeHtml(p.name)}</span>
@@ -466,6 +472,9 @@ function renderSheets() {
         `).join("")
       : '<div class="craft-empty">该纸张暂无附加工艺</div>';
 
+    const triggerText = currentPaper ? (currentPaper.shortName || currentPaper.name) : "无可用纸张";
+    const triggerDesc = currentPaper ? currentPaper.name : "请导入报价表";
+
     card.innerHTML = `
       <div class="sheet-title">纸张 ${index + 1}</div>
       <div class="form-group">
@@ -473,8 +482,8 @@ function renderSheets() {
         <div class="paper-dropdown" data-sheet="${index}">
           <div class="paper-trigger">
             <div>
-              <span class="paper-trigger-text">${escapeHtml(currentPaper.shortName || currentPaper.name)}</span>
-              <span class="paper-trigger-desc">${escapeHtml(currentPaper.name)}</span>
+              <span class="paper-trigger-text">${escapeHtml(triggerText)}</span>
+              <span class="paper-trigger-desc">${escapeHtml(triggerDesc)}</span>
             </div>
             <span class="paper-trigger-arrow"></span>
           </div>
@@ -765,7 +774,7 @@ function onCalculate() {
   // 渲染批量档位快速切换按钮
   if (els.tierQuickSwitch && els.tierQuickBtns) {
     const tierSet = new Set();
-    for (const paper of PAPER_CONFIG) {
+    for (const paper of getPapersByPriceList(CURRENT_PRICE_LIST_ID)) {
       for (const spec of paper.specs) {
         Object.keys(spec.prices).forEach(t => tierSet.add(Number(t)));
       }
@@ -895,9 +904,10 @@ function clearResult() {
   if (els.shippingOverrideCards) { els.shippingOverrideCards.style.display = "none"; els.shippingOverrideCards.innerHTML = ""; }
 }
 
-// -------------------- 1号报价表渲染 --------------------
+// -------------------- 报价表渲染 --------------------
 function renderPriceTable() {
-  const paper = PAPER_CONFIG[currentPaperIndex];
+  const currentPapers = getPapersByPriceList(CURRENT_PRICE_LIST_ID);
+  const paper = currentPapers[currentPaperIndex];
   if (!paper) return;
 
   const keyword = els.searchInput.value.trim().toLowerCase();
@@ -928,10 +938,10 @@ function renderPriceTable() {
 
   els.paperDiscount.textContent = `${paper.name} | ${paper.discount === 1 ? "无折扣" : (paper.discount * 10).toFixed(1) + "折"}`;
   els.tableMeta.textContent = `行数：${filtered.length} / ${paper.specs.length}`;
-  els.paperPageInfo.textContent = `第 ${currentPaperIndex + 1} / ${PAPER_CONFIG.length} 张`;
+  els.paperPageInfo.textContent = `第 ${currentPaperIndex + 1} / ${currentPapers.length} 张`;
   els.prevPaper.disabled = currentPaperIndex === 0;
-  els.nextPaper.disabled = currentPaperIndex === PAPER_CONFIG.length - 1;
-  els.paperNotes.textContent = `备注：当前展示「${paper.name}」1号报价表。007 与 008 合并为 007/008；匹配面积超过 10000 mm² 时请与上级联系。`;
+  els.nextPaper.disabled = currentPaperIndex === currentPapers.length - 1;
+  els.paperNotes.textContent = `备注：当前展示「${paper.name}」（${getCurrentPriceList().name}）。007 与 008 合并为 007/008；匹配面积超过 10000 mm² 时请与上级联系。`;
 
   // 同步下拉选择器
   if (els.paperSelector) {
@@ -964,13 +974,53 @@ function renderPriceTable() {
  */
 function syncPaperSelector() {
   if (!els.paperSelector) return;
-  const showIndex = PAPER_CONFIG.length > 10;
-  els.paperSelector.innerHTML = PAPER_CONFIG.map((p, i) => {
+  const currentPapers = getPapersByPriceList(CURRENT_PRICE_LIST_ID);
+  const showIndex = currentPapers.length > 10;
+  els.paperSelector.innerHTML = currentPapers.map((p, i) => {
     const label = showIndex
       ? `${i + 1}. ${escapeHtml(p.shortName || p.name)}`
       : escapeHtml(p.shortName || p.name);
     return `<option value="${i}"${i === currentPaperIndex ? " selected" : ""}>${label}</option>`;
   }).join("");
+}
+
+// -------------------- 报价表组切换 --------------------
+function renderPriceListSelector() {
+  if (!els.priceListSelector) return;
+  els.priceListSelector.innerHTML = PRICE_LISTS.map(pl => {
+    const selected = pl.id === CURRENT_PRICE_LIST_ID ? " selected" : "";
+    return `<option value="${escapeHtml(pl.id)}"${selected}>${escapeHtml(pl.name)}</option>`;
+  }).join("");
+}
+
+function onPriceListChange() {
+  if (!els.priceListSelector) return;
+  const newId = els.priceListSelector.value;
+  if (newId && newId !== CURRENT_PRICE_LIST_ID) {
+    setCurrentPriceList(newId);
+    currentPaperIndex = 0; // 重置纸张索引
+    // 纸张按报价表隔离，需重渲染；吊绳/邮费全局共享，无需重渲染
+    rebuildPaperUI();
+    renderPriceTable();
+    onCalculate();
+    showToast(`已切换到「${getCurrentPriceList().name}」`);
+  }
+}
+
+function onDeletePriceList() {
+  if (PRICE_LISTS.length <= 1) {
+    showToast("至少保留一个报价表，无法删除");
+    return;
+  }
+  const pl = getCurrentPriceList();
+  if (!confirm(`确定删除报价表「${pl.name}」吗？\n\n该报价表下的 ${getPapersByPriceList(CURRENT_PRICE_LIST_ID).length} 张纸张及关联工艺将被删除。\n吊绳/邮费为全局共享，不受影响。\n\n此操作不可撤销。`)) return;
+  deletePriceList(CURRENT_PRICE_LIST_ID);
+  currentPaperIndex = 0;
+  renderPriceListSelector();
+  rebuildPaperUI();
+  renderPriceTable();
+  onCalculate();
+  showToast(`已删除报价表「${pl.name}」`);
 }
 
 // -------------------- 翻页 --------------------
@@ -982,7 +1032,7 @@ function prevPaper() {
 }
 
 function nextPaper() {
-  if (currentPaperIndex < PAPER_CONFIG.length - 1) {
+  if (currentPaperIndex < getPapersByPriceList(CURRENT_PRICE_LIST_ID).length - 1) {
     currentPaperIndex++;
     renderPriceTable();
   }
@@ -1074,15 +1124,17 @@ function resetCustomerLevels() {
  * 用途：换设备或被旧 localStorage 污染后，一键回到 DEFAULT 状态。
  */
 function resetToDefaults() {
-  const confirmMsg = "将清空以下本地修改并恢复出厂默认：\n\n• 纸张配置（9 张1号报价表）\n• 工艺配置（含 烫金/UV/鸡眼/凹凸 等）\n• 吊绳配置\n• 客户等级\n\n报价历史与本地快照不会被删除。\n\n确定继续？";
+  const confirmMsg = "将清空以下本地修改并恢复出厂默认：\n\n• 报价表组（恢复为单个1号报价表）\n• 纸张配置（9 张1号报价表）\n• 工艺配置（含 烫金/UV/鸡眼/凹凸 等）\n• 吊绳配置\n• 邮费配置\n• 客户等级\n\n报价历史与本地快照不会被删除。\n\n确定继续？";
   if (!confirm(confirmMsg)) return;
 
-  const keysToReset = ["paperConfig", "craftConfig", "ropeConfig", "customerLevels"];
+  const keysToReset = ["paperConfig", "craftConfig", "ropeConfig", "shippingConfig", "customerLevels", "priceLists", "currentPriceListId"];
   keysToReset.forEach(k => {
     try { localStorage.removeItem("tagPricing_" + k); } catch (e) { /* 忽略 */ }
   });
 
   // 重新从 DEFAULT 派生（深拷贝，避免后续修改污染源对象）
+  PRICE_LISTS = DEFAULT_PRICE_LISTS.map(p => ({ ...p }));
+  CURRENT_PRICE_LIST_ID = "priceList1";
   PAPER_CONFIG = DEFAULT_PAPER_CONFIG.map(p => ({
     ...p,
     specs: p.specs.map(s => ({ ...s, prices: { ...s.prices } }))
@@ -1092,15 +1144,20 @@ function resetToDefaults() {
     CRAFT_CONFIG[k] = DEFAULT_CRAFT_CONFIG[k].map(c => ({ ...c, prices: { ...c.prices } }));
   });
   ROPE_CONFIG = DEFAULT_ROPE_CONFIG.map(r => ({ ...r, prices: { ...r.prices } }));
+  SHIPPING_CONFIG = DEFAULT_SHIPPING_CONFIG.map(s => ({ ...s, basePrices: { ...s.basePrices } }));
   CUSTOMER_LEVELS = DEFAULT_CUSTOMER_LEVELS.map(l => ({ ...l }));
+  currentPaperIndex = 0;
 
   rebuildPaperUI();
   renderLevelSettings();
+  renderRopeRadios();
+  initOptions();
   // 重新填充下拉框默认值
   updateDefaultPaperOptions && updateDefaultPaperOptions();
   updateDefaultRopeOptions && updateDefaultRopeOptions();
+  renderPriceListSelector && renderPriceListSelector();
   onCalculate();
-  showToast("已恢复默认配置（含工艺 单面/双面 后缀）");
+  showToast("已恢复默认配置（含报价表组）");
 }
 
 /**
@@ -1109,11 +1166,11 @@ function resetToDefaults() {
  * 保留范围：报价历史、本地快照。
  */
 function resetAllLocalSettings() {
-  const confirmMsg = "⚠️ 确定要恢复全局默认设置吗？\n\n将清除以下本地配置：\n• 纸张配置（9 张1号报价表）\n• 工艺配置（含 烫金/UV/鸡眼/凹凸 等）\n• 吊绳配置\n• 客户等级与毛利系数\n• 公司信息与个人偏好\n\n报价历史与本地快照不受影响。\n\n此操作不可撤销，恢复后页面将自动刷新。";
+  const confirmMsg = "⚠️ 确定要恢复全局默认设置吗？\n\n将清除以下本地配置：\n• 报价表组（恢复为单个1号报价表）\n• 纸张配置（9 张1号报价表）\n• 工艺配置（含 烫金/UV/鸡眼/凹凸 等）\n• 吊绳配置\n• 邮费配置\n• 客户等级与毛利系数\n• 公司信息与个人偏好\n\n报价历史与本地快照不受影响。\n\n此操作不可撤销，恢复后页面将自动刷新。";
   if (!confirm(confirmMsg)) return;
 
   // 清除所有本地配置 key（保留 history 和 snapshots）
-  const keysToWipe = ["paperConfig", "craftConfig", "ropeConfig", "customerLevels", "appProfile"];
+  const keysToWipe = ["paperConfig", "craftConfig", "ropeConfig", "shippingConfig", "customerLevels", "appProfile", "priceLists", "currentPriceListId"];
   keysToWipe.forEach(k => {
     try { localStorage.removeItem("tagPricing_" + k); } catch (e) { /* 忽略 */ }
   });
@@ -1136,7 +1193,7 @@ function loadProfileToUI() {
 
 function updateDefaultTierOptions() {
   if (!els.defaultTier) return;
-  const firstPaper = PAPER_CONFIG[0];
+  const firstPaper = getPapersByPriceList(CURRENT_PRICE_LIST_ID)[0];
   const tiers = firstPaper && firstPaper.specs.length
     ? Object.keys(firstPaper.specs[0].prices).map(Number).sort((a, b) => a - b)
     : [];
@@ -1154,8 +1211,10 @@ function updateDefaultRopeOptions() {
 
 function updateDefaultPaperOptions() {
   if (!els.defaultPaper) return;
-  const opts = ['<option value="">跟随默认（1号报价表-3）</option>'].concat(
-    PAPER_CONFIG.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.shortName || p.name)}</option>`)
+  const currentPapers = getPapersByPriceList(CURRENT_PRICE_LIST_ID);
+  const defaultLabel = currentPapers.length ? `跟随默认（${currentPapers[0].shortName || currentPapers[0].name}）` : "跟随默认";
+  const opts = [`<option value="">${escapeHtml(defaultLabel)}</option>`].concat(
+    currentPapers.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.shortName || p.name)}</option>`)
   );
   els.defaultPaper.innerHTML = opts.join("");
 }
@@ -1228,6 +1287,8 @@ function createSnapshot() {
     name: name,
     createdAt: new Date().toISOString(),
     data: {
+      priceLists: PRICE_LISTS,
+      currentPriceListId: CURRENT_PRICE_LIST_ID,
       customerLevels: CUSTOMER_LEVELS,
       appProfile: APP_PROFILE,
       paperConfig: PAPER_CONFIG,
@@ -1261,6 +1322,14 @@ function renderSnapshots() {
     btn.addEventListener("click", () => {
       const item = getSnapshots().find(x => x.id === btn.dataset.id);
       if (!item) return;
+      if (item.data.priceLists) {
+        PRICE_LISTS = item.data.priceLists;
+        saveToStorage("priceLists", PRICE_LISTS);
+      }
+      if (item.data.currentPriceListId) {
+        CURRENT_PRICE_LIST_ID = item.data.currentPriceListId;
+        saveToStorage("currentPriceListId", CURRENT_PRICE_LIST_ID);
+      }
       if (item.data.customerLevels) {
         CUSTOMER_LEVELS = item.data.customerLevels;
         saveToStorage("customerLevels", CUSTOMER_LEVELS);
@@ -1269,6 +1338,17 @@ function renderSnapshots() {
         APP_PROFILE = item.data.appProfile;
         saveToStorage("appProfile", APP_PROFILE);
       }
+      if (item.data.paperConfig) {
+        PAPER_CONFIG = item.data.paperConfig;
+        saveToStorage("paperConfig", PAPER_CONFIG);
+      }
+      if (item.data.craftConfig) {
+        CRAFT_CONFIG = item.data.craftConfig;
+        saveToStorage("craftConfig", CRAFT_CONFIG);
+      }
+      currentPaperIndex = 0;
+      renderPriceListSelector && renderPriceListSelector();
+      rebuildPaperUI();
       renderLevelSettings();
       loadProfileToUI();
       onCalculate();
@@ -1367,9 +1447,11 @@ function setLocalBackupStatus(html, isError) {
 
 function exportLocalBackup() {
   const data = {
-    version: "4.3",
+    version: "5.3",
     kind: "local-backup",
     exportAt: new Date().toISOString(),
+    priceLists: PRICE_LISTS,
+    currentPriceListId: CURRENT_PRICE_LIST_ID,
     customerLevels: CUSTOMER_LEVELS,
     appProfile: APP_PROFILE,
     paperConfig: PAPER_CONFIG,
@@ -1441,6 +1523,15 @@ function importLocalBackup(file) {
       if (data.kind && data.kind !== "local-backup" && data.kind !== "full-config") {
         throw new Error("文件类型不匹配，请使用「保存到本地文件」生成的文件");
       }
+      // 还原报价表组结构
+      if (data.priceLists && Array.isArray(data.priceLists)) {
+        PRICE_LISTS = data.priceLists;
+        saveToStorage("priceLists", PRICE_LISTS);
+      }
+      if (data.currentPriceListId) {
+        CURRENT_PRICE_LIST_ID = data.currentPriceListId;
+        saveToStorage("currentPriceListId", CURRENT_PRICE_LIST_ID);
+      }
       if (data.customerLevels) {
         CUSTOMER_LEVELS = data.customerLevels;
         saveToStorage("customerLevels", CUSTOMER_LEVELS);
@@ -1453,7 +1544,6 @@ function importLocalBackup(file) {
       if (data.paperConfig) {
         PAPER_CONFIG = data.paperConfig;
         saveToStorage("paperConfig", PAPER_CONFIG);
-        rebuildPaperUI();
       }
       if (data.ropeConfig) {
         ROPE_CONFIG = data.ropeConfig;
@@ -1467,6 +1557,7 @@ function importLocalBackup(file) {
       if (data.shippingConfig) {
         SHIPPING_CONFIG.length = 0;
         data.shippingConfig.forEach(s => SHIPPING_CONFIG.push(s));
+        saveToStorage("shippingConfig", SHIPPING_CONFIG);
         if (els.region) {
           els.region.innerHTML = '<option value="">请选择地区</option>' +
             SHIPPING_CONFIG.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join("");
@@ -1475,6 +1566,9 @@ function importLocalBackup(file) {
       }
       if (data.snapshots) saveSnapshots(data.snapshots);
       if (data.history) saveHistory(data.history);
+      currentPaperIndex = 0;
+      renderPriceListSelector && renderPriceListSelector();
+      rebuildPaperUI();
       renderLevelSettings();
       loadProfileToUI();
       renderSnapshots();
@@ -1498,13 +1592,16 @@ function importLocalBackup(file) {
 // -------------------- 导入 / 导出完整配置 --------------------
 function exportFullData() {
   const data = {
-    version: "4.3",
+    version: "5.3",
     exportAt: new Date().toISOString(),
+    priceLists: PRICE_LISTS,
+    currentPriceListId: CURRENT_PRICE_LIST_ID,
     customerLevels: CUSTOMER_LEVELS,
     appProfile: APP_PROFILE,
     paperConfig: PAPER_CONFIG,
     ropeConfig: ROPE_CONFIG,
     craftConfig: CRAFT_CONFIG,
+    shippingConfig: SHIPPING_CONFIG,
     snapshots: getSnapshots(),
     history: getHistory()
   };
@@ -1518,6 +1615,15 @@ function importFullData(file) {
   reader.onload = e => {
     try {
       const data = JSON.parse(e.target.result);
+      // 还原报价表组结构
+      if (data.priceLists && Array.isArray(data.priceLists)) {
+        PRICE_LISTS = data.priceLists;
+        saveToStorage("priceLists", PRICE_LISTS);
+      }
+      if (data.currentPriceListId) {
+        CURRENT_PRICE_LIST_ID = data.currentPriceListId;
+        saveToStorage("currentPriceListId", CURRENT_PRICE_LIST_ID);
+      }
       if (data.customerLevels) {
         CUSTOMER_LEVELS = data.customerLevels;
         saveToStorage("customerLevels", CUSTOMER_LEVELS);
@@ -1529,7 +1635,6 @@ function importFullData(file) {
       if (data.paperConfig) {
         PAPER_CONFIG = data.paperConfig;
         saveToStorage("paperConfig", PAPER_CONFIG);
-        rebuildPaperUI();
       }
       if (data.ropeConfig) {
         ROPE_CONFIG = data.ropeConfig;
@@ -1543,6 +1648,7 @@ function importFullData(file) {
       if (data.shippingConfig) {
         SHIPPING_CONFIG.length = 0;
         data.shippingConfig.forEach(s => SHIPPING_CONFIG.push(s));
+        saveToStorage("shippingConfig", SHIPPING_CONFIG);
         if (els.region) {
           els.region.innerHTML = '<option value="">请选择地区</option>' +
             SHIPPING_CONFIG.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join("");
@@ -1551,6 +1657,9 @@ function importFullData(file) {
       }
       if (data.snapshots) saveSnapshots(data.snapshots);
       if (data.history) saveHistory(data.history);
+      currentPaperIndex = 0;
+      renderPriceListSelector && renderPriceListSelector();
+      rebuildPaperUI();
       renderLevelSettings();
       loadProfileToUI();
       renderSnapshots();
@@ -1610,8 +1719,8 @@ function paperToSheetRows(paper) {
     : [];
   return [
     ["所属小组", GROUP_META.name],
-    ["总报价表", PRICE_LIST_META.name],
-    ["1号报价表全称", paper.name],
+    ["总报价表", getCurrentPriceList().name],
+    ["报价表全称", paper.name],
     ["简称", paper.shortName],
     ["折扣系数", paper.discount],
     ["备注", ""],
@@ -1626,12 +1735,14 @@ function exportPaperExcel() {
   // P1.4: 确保 SheetJS 已加载
   if (typeof XLSX === "undefined") { loadSheetJS().then(() => exportPaperExcel()).catch(() => showToast("Excel 库加载失败，请检查网络")); return; }
   const wb = XLSX.utils.book_new();
-  for (const paper of PAPER_CONFIG) {
+  const currentPapers = getPapersByPriceList(CURRENT_PRICE_LIST_ID);
+  for (const paper of currentPapers) {
     const ws = XLSX.utils.aoa_to_sheet(paperToSheetRows(paper));
     XLSX.utils.book_append_sheet(wb, ws, paper.shortName || paper.name);
   }
-  XLSX.writeFile(wb, "KOKALabel1号报价表_" + formatDateFile() + ".xlsx");
-  showToast("1号报价表 Excel 已导出");
+  const plName = getCurrentPriceList().name;
+  XLSX.writeFile(wb, `KOKALabel${plName}_${formatDateFile()}.xlsx`);
+  showToast(`${plName} Excel 已导出（${currentPapers.length} 张）`);
 }
 
 function downloadPaperTemplate() {
@@ -1960,8 +2071,10 @@ function parsePaperExcel(arrayBuffer) {
   const craftsByPaper = {};
   const shortNames = new Set();
   const errors = [];
-  // 收集所有已使用的 paper id（默认配置 + 本次导入已分配），防止 ID 碰撞
-  const usedIds = new Set(DEFAULT_PAPER_CONFIG.map(p => p.id));
+  // 收集所有已使用的 paper id（默认配置 + 运行时 PAPER_CONFIG + 本次导入已分配），防止 ID 碰撞
+  const usedIds = new Set([...DEFAULT_PAPER_CONFIG.map(p => p.id), ...PAPER_CONFIG.map(p => p.id)]);
+  // 解析报价表名称（取第一个 Sheet 的"总报价表"行）
+  let priceListName = "";
 
   wb.SheetNames.forEach((sheetName, sheetIndex) => {
     const ws = wb.Sheets[sheetName];
@@ -1976,7 +2089,12 @@ function parsePaperExcel(arrayBuffer) {
     for (let i = 0; i < Math.min(rows.length, 8); i++) {
       const label = String(rows[i] && rows[i][0] || "").trim();
       const val = rows[i] && rows[i][1];
-      if (label === "所属小组" || label === "总报价表") continue; // 架构层级信息，解析时跳过
+      if (label === "所属小组") continue;
+      if (label === "总报价表") {
+        // 捕获报价表名称（取第一个非空值）
+        if (!priceListName && val) priceListName = String(val).trim();
+        continue;
+      }
       if (label === "1号报价表全称" || label === "报价表全称") name = String(val || "").trim();
       else if (label === "简称") shortName = String(val || "").trim();
       else if (label === "折扣系数") discountRaw = val;
@@ -1984,7 +2102,7 @@ function parsePaperExcel(arrayBuffer) {
     const discount = discountRaw === "" || discountRaw == null ? 1 : Number(discountRaw);
 
     if (!name) {
-      errors.push(`「${sheetName}」缺少1号报价表全称，已跳过`);
+      errors.push(`「${sheetName}」缺少报价表全称，已跳过`);
       return;
     }
     if (!shortName) {
@@ -2142,10 +2260,10 @@ function parsePaperExcel(arrayBuffer) {
   });
 
   if (!papers.length) {
-    throw new Error(errors.join("；") || "没有可导入的1号报价表");
+    throw new Error(errors.join("；") || "没有可导入的报价表");
   }
 
-  return { papers, crafts: craftsByPaper, errors };
+  return { papers, crafts: craftsByPaper, errors, priceListName: priceListName || "" };
 }
 
 function importPaperExcel(file) {
@@ -2157,19 +2275,29 @@ function importPaperExcel(file) {
   const reader = new FileReader();
   reader.onload = e => {
     try {
-      const { papers, crafts, errors } = parsePaperExcel(e.target.result);
-      PAPER_CONFIG = papers;
+      const { papers, crafts, errors, priceListName } = parsePaperExcel(e.target.result);
+      // 创建新报价表
+      const plName = priceListName || `报价表${PRICE_LISTS.length + 1}`;
+      const newPriceListId = addPriceList(plName);
+      // 为导入的纸张设置 priceListId
+      papers.forEach(p => { p.priceListId = newPriceListId; });
+      // 追加到 PAPER_CONFIG（不替换已有报价表的纸张）
+      PAPER_CONFIG = PAPER_CONFIG.concat(papers);
       saveToStorage("paperConfig", PAPER_CONFIG);
-      // 合并导入的工艺：保留未在 Excel 中出现的纸张的默认工艺
-      CRAFT_CONFIG = { ...DEFAULT_CRAFT_CONFIG, ...crafts };
+      // 合并工艺配置
+      CRAFT_CONFIG = { ...CRAFT_CONFIG, ...crafts };
       saveToStorage("craftConfig", CRAFT_CONFIG);
+      // 切换到新报价表
+      currentPaperIndex = 0;
       rebuildPaperUI();
+      renderPriceListSelector();
+      renderPriceTable();
       onCalculate();
       const craftCount = Object.values(crafts).reduce((sum, arr) => sum + arr.length, 0);
-      const successMsg = `成功导入 ${papers.length} 张1号报价表${craftCount ? `（含 ${craftCount} 条工艺）` : ""}：${papers.map(p => p.shortName).join("、")}`;
+      const successMsg = `成功导入报价表「${plName}」（${papers.length} 张纸张${craftCount ? `，含 ${craftCount} 条工艺` : ""}）：${papers.map(p => p.shortName).join("、")}`;
       const errMsg = errors.length ? `<br><span style="color:var(--danger)">警告：${errors.join("；")}</span>` : "";
       setExcelStatus(successMsg + errMsg, false);
-      showToast("Excel 导入成功");
+      showToast(`已导入报价表「${plName}」`);
     } catch (err) {
       setExcelStatus("导入失败：" + err.message, true);
       showToast("Excel 导入失败");
@@ -2184,11 +2312,13 @@ function importPaperExcel(file) {
 }
 
 function rebuildPaperUI() {
-  // 重建纸张选择 UI、纸张设置列表、1号报价表查询页
-  currentPaperIndex = Math.min(currentPaperIndex, Math.max(0, PAPER_CONFIG.length - 1));
+  // 重建纸张选择 UI、纸张设置列表、报价表查询页
+  const currentPapers = getPapersByPriceList(CURRENT_PRICE_LIST_ID);
+  currentPaperIndex = Math.min(currentPaperIndex, Math.max(0, currentPapers.length - 1));
   // 重置纸张设置，保留尺寸数据，默认使用第一张纸
+  const fallbackPaperId = currentPapers[0]?.id || "";
   sheetsState = sheetsState.map(s => ({
-    paperId: PAPER_CONFIG.find(p => p.id === s.paperId) ? s.paperId : PAPER_CONFIG[0].id,
+    paperId: currentPapers.find(p => p.id === s.paperId) ? s.paperId : fallbackPaperId,
     craftIds: [],
     width: s.width || "",
     length: s.length || "",
@@ -2513,6 +2643,7 @@ function switchPage(pageName) {
     page.classList.toggle("active", page.id === "page-" + pageName);
   });
   if (pageName === "table") {
+    renderPriceListSelector();
     renderPriceTable();
   } else if (pageName === "profile") {
     renderLevelSettings();
@@ -2551,11 +2682,13 @@ function bindEvents() {
   if (els.nextPaper) els.nextPaper.addEventListener("click", nextPaper);
   if (els.paperSelector) els.paperSelector.addEventListener("change", () => {
     const idx = parseInt(els.paperSelector.value, 10);
-    if (!isNaN(idx) && idx >= 0 && idx < PAPER_CONFIG.length) {
+    if (!isNaN(idx) && idx >= 0 && idx < getPapersByPriceList(CURRENT_PRICE_LIST_ID).length) {
       currentPaperIndex = idx;
       renderPriceTable();
     }
   });
+  if (els.priceListSelector) els.priceListSelector.addEventListener("change", onPriceListChange);
+  if (els.deletePriceListBtn) els.deletePriceListBtn.addEventListener("click", onDeletePriceList);
 
   // 个人主页事件
   if (els.addLevelBtn) els.addLevelBtn.addEventListener("click", addCustomerLevel);
@@ -2652,7 +2785,8 @@ function bindEvents() {
     ["loadProfileToUI", loadProfileToUI],
     ["renderLevelSettings", renderLevelSettings],
     ["renderSnapshots", renderSnapshots],
-    ["renderHistory", renderHistory]
+    ["renderHistory", renderHistory],
+    ["renderPriceListSelector", renderPriceListSelector]
   ];
   steps.forEach(([name, fn]) => {
     try { if (typeof fn === "function") fn(); }
@@ -2670,7 +2804,7 @@ function bindEvents() {
   // 应用个人主页的默认纸张材质设置
   try {
     if (APP_PROFILE.defaultPaperId) {
-      const idx = PAPER_CONFIG.findIndex(p => p.id === APP_PROFILE.defaultPaperId);
+      const idx = getPapersByPriceList(CURRENT_PRICE_LIST_ID).findIndex(p => p.id === APP_PROFILE.defaultPaperId);
       if (idx >= 0) {
         currentPaperIndex = idx;
         renderPriceTable();

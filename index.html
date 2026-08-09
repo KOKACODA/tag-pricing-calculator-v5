@@ -6,15 +6,15 @@
   <meta name="googlebot" content="noindex, nofollow">
   <!-- P0 安全：CSP 策略 -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' cdn.sheetjs.com 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';">
-  <title>KOKALabel报价系统 v5.3</title>
-  <link rel="stylesheet" href="css/style.css?v=5.3">
+  <title>KOKALabel报价系统 v5.4</title>
+  <link rel="stylesheet" href="css/style.css?v=5.4">
 </head>
 <body>
   <!-- 顶部导航 -->
   <nav class="navbar">
     <div class="nav-inner">
       <button class="nav-btn active" data-page="calculator">智能报价计算器</button>
-      <button class="nav-btn" data-page="table">1号报价表查询</button>
+      <button class="nav-btn" data-page="table">报价表组查询</button>
       <button class="nav-btn" data-page="profile">个人主页</button>
     </div>
   </nav>
@@ -486,7 +486,15 @@
     <!-- 页面2：1号报价表查询 -->
     <section class="page" id="page-table">
       <div class="card">
-        <h2 class="card-title">1号报价表查询</h2>
+        <h2 class="card-title">报价表组查询</h2>
+
+        <!-- 报价表组切换器 -->
+        <div class="price-list-switcher">
+          <label class="switcher-label">当前报价表：</label>
+          <select id="priceListSelector" class="price-list-selector"></select>
+          <button class="btn danger-outline sm" id="deletePriceListBtn" title="删除当前报价表（不允许删除最后一个）">删除当前报价表</button>
+        </div>
+
         <div class="table-toolbar">
           <input type="text" id="searchInput" placeholder="输入代码或面积搜索...">
           <span class="paper-discount" id="paperDiscount">请先选择纸张</span>
@@ -601,16 +609,16 @@
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
             <div>
               <h3 style="font-size:14px;color:var(--brand-dark);margin:0;">价格配置导入 / 导出</h3>
-              <p style="font-size:12px;color:var(--text-secondary);margin:4px 0 0;">当前支持本地 JSON 与 Excel 导入导出；Excel 每个 Sheet 对应一张1号报价表。后续可对接后端数据库或 Cloudflare KV 实现多设备同步。</p>
+              <p style="font-size:12px;color:var(--text-secondary);margin:4px 0 0;">支持多报价表管理：导入 Excel = 新增报价表，切换报价表查看不同价格。吊绳/邮费全局共享，不随报价表切换。</p>
             </div>
             <button class="btn danger-outline sm" id="resetToDefaultsBtn" title="清空纸张/工艺/吊绳/客户等级的所有本地修改，恢复出厂配置（不影响报价历史与本地快照）">重置为默认配置</button>
           </div>
 
           <div style="margin-bottom:18px;">
-            <h4 style="font-size:13px;color:var(--brand-dark);margin-bottom:8px;">Excel 1号报价表</h4>
+            <h4 style="font-size:13px;color:var(--brand-dark);margin-bottom:8px;">报价表 Excel（导入 = 新增报价表）</h4>
             <div class="btn-group">
-              <button class="btn" id="exportExcelBtn">导出1号报价表 Excel</button>
-              <button class="btn secondary" id="importExcelBtn">导入1号报价表 Excel</button>
+              <button class="btn" id="exportExcelBtn">导出当前报价表 Excel</button>
+              <button class="btn secondary" id="importExcelBtn">导入报价表 Excel</button>
               <button class="btn secondary" id="downloadTemplateBtn">下载 Excel 模板</button>
               <input type="file" id="importExcelFile" accept=".xlsx,.xls" style="display:none">
             </div>
@@ -857,6 +865,6 @@
 
   <!-- P1.4: SheetJS defer 备用加载（不阻塞渲染），app.js 中 loadSheetJS() 为按需加载兜底 -->
   <script defer src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-  <script src="js/data.js?v=5.3"></script>
-  <script src="js/app.js?v=5.3"></script>
+  <script src="js/data.js?v=5.4"></script>
+  <script src="js/app.js?v=5.4"></script>
 </body></html>
