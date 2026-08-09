@@ -86,17 +86,31 @@ function calcBleedArea(length, width) {
 }
 
 /**
+ * 计算面积系数：面积超过 10000 时，系数 = 面积 / 10000，四舍五入保留两位小数。
+ */
+function calcAreaCoefficient(area) {
+  if (area <= 10000) return 1;
+  return Math.round((area / 10000) * 100) / 100;
+}
+
+/**
  * 根据有效面积向上匹配尺寸规格。
- * 面积超过 10000 时返回错误提示；007 与 008 合并显示为 007/008。
+ * 面积超过 10000 时使用最大规格（code "100"）并附带面积系数；007 与 008 合并显示为 007/008。
  */
 function matchSpec(paper, area) {
-  if (area > 10000) {
-    return { error: true, message: "请与上级联系" };
-  }
   const candidates = paper.specs
     .filter(s => s.maxArea >= area)
     .sort((a, b) => a.maxArea - b.maxArea);
   if (!candidates.length) {
+    // 面积超过最大规格，使用最后一个规格并计算面积系数
+    const lastSpec = paper.specs[paper.specs.length - 1];
+    if (lastSpec && area > lastSpec.maxArea) {
+      const coeff = calcAreaCoefficient(area);
+      if (lastSpec.code === "007" || lastSpec.code === "008") {
+        return { ...lastSpec, code: "007/008", areaCoefficient: coeff };
+      }
+      return { ...lastSpec, areaCoefficient: coeff };
+    }
     return { error: true, message: "未找到匹配规格" };
   }
   const spec = candidates[0];
@@ -145,6 +159,8 @@ function calculate(inputs) {
   const sheetDetails = [];
   // 是否有任一纸张/工艺在所选档位没有定价（用于显示"无该批量定价"占位）
   let hasMissingTier = false;
+  // 是否有任一纸张面积超过 10000 触发面积系数
+  let hasAreaCoefficient = false;
 
   for (const sheet of sheets) {
     const { width, length, sizeType, paperId, craftIds } = sheet;
@@ -161,13 +177,20 @@ function calculate(inputs) {
       return { error: spec.message };
     }
 
-    // 纸张折后价：精确匹配档位，无值则占位
-    const paperUnitPrice = hasExactTier(spec.prices, tier)
-      ? Number(spec.prices[tier]) * paper.discount
-      : null;
-    const paperOriginalPrice = hasExactTier(spec.prices, tier)
+    const areaCoeff = spec.areaCoefficient || 1;
+    if (areaCoeff > 1) hasAreaCoefficient = true;
+
+    // 纸张基础价（未乘面积系数）
+    const baseOriginalPrice = hasExactTier(spec.prices, tier)
       ? Number(spec.prices[tier])
       : null;
+    const baseUnitPrice = hasExactTier(spec.prices, tier)
+      ? Number(spec.prices[tier]) * paper.discount
+      : null;
+    // 纸张最终价（乘面积系数后）
+    const paperOriginalPrice = baseOriginalPrice != null ? baseOriginalPrice * areaCoeff : null;
+    const paperUnitPrice = baseUnitPrice != null ? baseUnitPrice * areaCoeff : null;
+
     if (paperUnitPrice == null) {
       hasMissingTier = true;
       warnings.push(`「${paper.shortName || paper.name}」无 ${tier} 张批量定价`);
@@ -206,6 +229,9 @@ function calculate(inputs) {
       code: spec.code,
       unitPrice: paperUnitPrice,
       originalUnitPrice: paperOriginalPrice,
+      baseUnitPrice: baseUnitPrice,
+      baseOriginalUnitPrice: baseOriginalPrice,
+      areaCoefficient: areaCoeff,
       missing: paperUnitPrice == null,
       crafts: sheetCraftDetails
     });
@@ -257,6 +283,7 @@ function calculate(inputs) {
     cost,
     costIncomplete,
     hasMissingTier,
+    hasAreaCoefficient,
     pricesByLevel,
     warnings
   };
@@ -279,6 +306,9 @@ const els = {
   resTier: document.getElementById("resTier"),
   resPaperPrice: document.getElementById("resPaperPrice"),
   resPaperOriginalPrice: document.getElementById("resPaperOriginalPrice"),
+  areaCoefficientRow: document.getElementById("areaCoefficientRow"),
+  resAreaCoefficient: document.getElementById("resAreaCoefficient"),
+  resAreaCoeffDesc: document.getElementById("resAreaCoeffDesc"),
   tierQuickSwitch: document.getElementById("tierQuickSwitch"),
   tierQuickBtns: document.getElementById("tierQuickBtns"),
   resCraftPrice: document.getElementById("resCraftPrice"),
@@ -726,25 +756,37 @@ function onCalculate() {
 
   els.resTier.textContent = result.tier + " 张";
   // 纸张价合计（折扣前）/ 纸张折后价合计：多纸张时显示 "¥价格1 + ¥价格2 = ¥合计"，合计蓝字
-  function renderPaperTotal(getPrice) {
+  // 当面积系数 > 1 时，每张纸显示 "¥基础价 × 系数" 格式
+  function renderPaperTotal(getFinalPrice, getBasePrice) {
     const details = result.sheetDetails;
     if (details.length === 1) {
-      const p = getPrice(details[0]);
-      return p != null ? "¥ " + formatMoney(p) : '<span class="price-missing">无该批量定价</span>';
+      const p = getFinalPrice(details[0]);
+      if (p == null) return '<span class="price-missing">无该批量定价</span>';
+      if (details[0].areaCoefficient > 1) {
+        const bp = getBasePrice(details[0]);
+        const coeff = details[0].areaCoefficient;
+        return '¥ ' + formatMoney(bp) + ' × ' + coeff + ' = <span style="color:var(--brand);font-weight:600;">¥ ' + formatMoney(p) + '</span>';
+      }
+      return "¥ " + formatMoney(p);
     }
     // 多纸张：逐张价格 + = 合计
     const parts = details.map(s => {
-      const p = getPrice(s);
-      return p != null ? "¥ " + formatMoney(p) : '<span class="price-missing">缺价</span>';
+      const p = getFinalPrice(s);
+      if (p == null) return '<span class="price-missing">缺价</span>';
+      if (s.areaCoefficient > 1) {
+        const bp = getBasePrice(s);
+        return '¥ ' + formatMoney(bp) + ' × ' + s.areaCoefficient;
+      }
+      return "¥ " + formatMoney(p);
     });
-    const total = getPrice(details[0]) != null && details.every(s => getPrice(s) != null);
+    const total = getFinalPrice(details[0]) != null && details.every(s => getFinalPrice(s) != null);
     const totalStr = total
-      ? '<span style="color:var(--brand);font-weight:600;">¥ ' + formatMoney(details.reduce((sum, s) => sum + getPrice(s), 0)) + '</span>'
+      ? '<span style="color:var(--brand);font-weight:600;">¥ ' + formatMoney(details.reduce((sum, s) => sum + getFinalPrice(s), 0)) + '</span>'
       : '<span class="price-missing">部分缺价</span>';
     return parts.join(' + ') + ' = ' + totalStr;
   }
-  els.resPaperOriginalPrice.innerHTML = renderPaperTotal(s => s.originalUnitPrice);
-  els.resPaperPrice.innerHTML = renderPaperTotal(s => s.unitPrice);
+  els.resPaperOriginalPrice.innerHTML = renderPaperTotal(s => s.originalUnitPrice, s => s.baseOriginalUnitPrice);
+  els.resPaperPrice.innerHTML = renderPaperTotal(s => s.unitPrice, s => s.baseUnitPrice);
   els.resCraftPrice.innerHTML = result.craftTotal ? "¥ " + formatMoney(result.craftTotal) : '<span class="price-missing">无该批量定价</span>';
   els.resRopePrice.innerHTML = result.ropePrice != null ? "¥ " + formatMoney(result.ropePrice) : '<span class="price-missing">无该批量定价</span>';
   els.resShippingPrice.innerHTML = result.shippingPrice != null ? "¥ " + formatMoney(result.shippingPrice) : '<span class="price-missing">无该批量定价</span>';
@@ -759,6 +801,24 @@ function onCalculate() {
   } else if (els.resWarnings) {
     els.resWarnings.innerHTML = "";
     els.resWarnings.style.display = "none";
+  }
+
+  // 面积系数提示：超 10000 时显示，否则隐藏
+  if (els.areaCoefficientRow) {
+    if (result.hasAreaCoefficient) {
+      // 收集所有有面积系数的纸张信息
+      const coeffSheets = result.sheetDetails.filter(s => s.areaCoefficient > 1);
+      const coeffList = coeffSheets.map(s => `${s.paperName}: ${s.area}`).join('，');
+      if (els.resAreaCoefficient) {
+        els.resAreaCoefficient.textContent = coeffSheets.map(s => s.areaCoefficient).filter((v, i, a) => a.indexOf(v) === i).join(' / ');
+      }
+      if (els.resAreaCoeffDesc) {
+        els.resAreaCoeffDesc.textContent = `计算面积 ${coeffList} 超过 10000mm²，已按面积系数计算`;
+      }
+      els.areaCoefficientRow.style.display = "flex";
+    } else {
+      els.areaCoefficientRow.style.display = "none";
+    }
   }
 
   // 渲染三个客户等级报价卡片
@@ -890,6 +950,9 @@ function clearResult() {
     els.resWarnings.innerHTML = "";
     els.resWarnings.style.display = "none";
   }
+  if (els.areaCoefficientRow) {
+    els.areaCoefficientRow.style.display = "none";
+  }
   if (els.tierQuickSwitch) {
     els.tierQuickSwitch.style.display = "none";
   }
@@ -941,7 +1004,7 @@ function renderPriceTable() {
   els.paperPageInfo.textContent = `第 ${currentPaperIndex + 1} / ${currentPapers.length} 张`;
   els.prevPaper.disabled = currentPaperIndex === 0;
   els.nextPaper.disabled = currentPaperIndex === currentPapers.length - 1;
-  els.paperNotes.textContent = `备注：当前展示「${paper.name}」（${getCurrentPriceList().name}）。007 与 008 合并为 007/008；匹配面积超过 10000 mm² 时请与上级联系。`;
+  els.paperNotes.textContent = `备注：当前展示「${paper.name}」（${getCurrentPriceList().name}）。007 与 008 合并为 007/008；面积超过 10000 mm² 时按面积系数计算（面积÷10000，四舍五入保留两位小数）。`;
 
   // 同步下拉选择器
   if (els.paperSelector) {
@@ -2769,6 +2832,16 @@ function bindEvents() {
     if (e.target && e.target.type === "number") {
       e.preventDefault();
       e.target.blur();
+    }
+    // 阻止纸张下拉框滚动穿透到页面
+    const opts = e.target.closest('.paper-options');
+    if (opts) {
+      const { scrollTop, scrollHeight, clientHeight } = opts;
+      const isAtTop = scrollTop <= 0;
+      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 1;
+      if ((isAtTop && e.deltaY < 0) || (isAtBottom && e.deltaY > 0)) {
+        e.preventDefault();
+      }
     }
   }, { passive: false });
 }

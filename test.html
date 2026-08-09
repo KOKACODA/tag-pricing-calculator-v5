@@ -58,9 +58,18 @@
       assert(calcBleedArea(100, 100) === 10609, "100x100 应为 10609");
     }});
 
-    test("calcBleedArea: 超过 10000 返回错误", () => {{
-      const result = matchSpec(PAPER_CONFIG[0], 10001);
-      assert(result.error === true, "面积超过 10000 应返回错误");
+    test("calcAreaCoefficient: 面积系数计算", () => {{
+      assert(calcAreaCoefficient(5000) === 1, "5000 面积系数应为 1");
+      assert(calcAreaCoefficient(10000) === 1, "10000 面积系数应为 1");
+      assert(calcAreaCoefficient(10289) === 1.03, "10289 面积系数应为 1.03");
+      assert(calcAreaCoefficient(34289) === 3.43, "34289 面积系数应为 3.43");
+    }});
+
+    test("matchSpec: 超过 10000 使用面积系数", () => {{
+      const result = matchSpec(PAPER_CONFIG[0], 10289);
+      assert(result.error === undefined, "面积超过 10000 不应返回错误");
+      assert(result.areaCoefficient === 1.03, "面积系数应为 1.03");
+      assert(result.code === "100", "应使用最大规格 code 100");
     }});
 
     test("escapeHtml: XSS 转义", () => {{

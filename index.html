@@ -6,8 +6,8 @@
   <meta name="googlebot" content="noindex, nofollow">
   <!-- P0 安全：CSP 策略 -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' cdn.sheetjs.com 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';">
-  <title>KOKALabel报价系统 v5.4</title>
-  <link rel="stylesheet" href="css/style.css?v=5.4">
+  <title>KOKALabel报价系统 v5.5</title>
+  <link rel="stylesheet" href="css/style.css?v=5.5">
 </head>
 <body>
   <!-- 顶部导航 -->
@@ -452,6 +452,15 @@
           </div>
           <div id="resWarnings" class="result-warnings" style="display:none;"></div>
 
+          <!-- 面积系数提示（超 10000 时显示） -->
+          <div id="areaCoefficientRow" class="area-coeff-row" style="display:none;">
+            <div>
+              <span class="coeff-label">面积系数：</span>
+              <span class="coeff-value" id="resAreaCoefficient">-</span>
+            </div>
+            <span class="coeff-desc" id="resAreaCoeffDesc"></span>
+          </div>
+
           <!-- 批量档位快速切换 -->
           <div id="tierQuickSwitch" class="tier-quick-switch" style="display:none;">
             <span class="tier-quick-label">快速切换档位：</span>
@@ -594,6 +603,28 @@
         <div class="btn-group">
           <button class="btn secondary sm" id="addLevelBtn">+ 新增等级</button>
           <button class="btn secondary sm" id="resetLevelBtn">恢复默认</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">面积系数说明</h2>
+        <div class="setting-row" style="display:block;">
+          <div class="setting-info" style="margin-bottom:12px;">
+            <div class="setting-label">什么是面积系数？</div>
+            <div class="setting-desc">当计算面积（含出血后的面积）超过 10000mm² 时，系统会自动使用最大规格（10000mm²）的价格作为基础价，并乘以面积系数来计算最终价格。</div>
+          </div>
+          <div class="setting-info" style="margin-bottom:12px;">
+            <div class="setting-label">面积系数如何计算？</div>
+            <div class="setting-desc">面积系数 = 计算面积 ÷ 10000，四舍五入保留两位小数。<br>举例：计算面积为 10289mm²，系数 = 10289 ÷ 10000 = 1.03；计算面积为 34289mm²，系数 = 34289 ÷ 10000 = 3.43。</div>
+          </div>
+          <div class="setting-info" style="margin-bottom:12px;">
+            <div class="setting-label">价格如何计算？</div>
+            <div class="setting-desc">最终纸张价 = 基础价（10000mm² 规格价格）× 面积系数。<br>举例：350克铜版纸 500 张，基础价 ¥80，面积系数 1.03，则最终价 = 80 × 1.03 = ¥82.4。</div>
+          </div>
+          <div class="setting-info">
+            <div class="setting-label">报价结果中的显示</div>
+            <div class="setting-desc">当触发面积系数时，报价结果区域会显示面积系数提示行，同时纸张价格合计行会以「¥ 基础价 × 系数 = ¥ 最终价」的格式显示。面积未超过 10000mm² 时不显示面积系数，按正常价格计算。</div>
+          </div>
         </div>
       </div>
 
@@ -865,6 +896,6 @@
 
   <!-- P1.4: SheetJS defer 备用加载（不阻塞渲染），app.js 中 loadSheetJS() 为按需加载兜底 -->
   <script defer src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-  <script src="js/data.js?v=5.4"></script>
-  <script src="js/app.js?v=5.4"></script>
+  <script src="js/data.js?v=5.5"></script>
+  <script src="js/app.js?v=5.5"></script>
 </body></html>
