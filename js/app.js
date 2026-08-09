@@ -1960,6 +1960,8 @@ function parsePaperExcel(arrayBuffer) {
   const craftsByPaper = {};
   const shortNames = new Set();
   const errors = [];
+  // 收集所有已使用的 paper id（默认配置 + 本次导入已分配），防止 ID 碰撞
+  const usedIds = new Set(DEFAULT_PAPER_CONFIG.map(p => p.id));
 
   wb.SheetNames.forEach((sheetName, sheetIndex) => {
     const ws = wb.Sheets[sheetName];
@@ -2069,7 +2071,18 @@ function parsePaperExcel(arrayBuffer) {
 
     // 尽量沿用默认配置中相同简称的 paper id，使工艺配置 CRAFT_CONFIG 保持对应
     const defaultPaper = DEFAULT_PAPER_CONFIG.find(p => p.shortName === shortName);
-    const id = defaultPaper ? defaultPaper.id : ("paper" + (sheetIndex + 1));
+    let id;
+    if (defaultPaper) {
+      id = defaultPaper.id;
+    } else {
+      // 不匹配默认简称：生成唯一 ID，避免与默认 paper1~9 或其他导入纸碰撞
+      let counter = usedIds.size + 1;
+      do {
+        id = "paper_import_" + counter;
+        counter++;
+      } while (usedIds.has(id));
+    }
+    usedIds.add(id);
 
     // 读取工艺区：查找 "工艺名称" 标题行
     const crafts = [];
@@ -2083,7 +2096,6 @@ function parsePaperExcel(arrayBuffer) {
       }
     }
     if (craftHeaderIndex !== -1) {
-      const paperNum = id.replace(/^paper/, "");
       for (let r = craftHeaderIndex + 1; r < rows.length; r++) {
         const row = rows[r];
         if (!row || !row.length) continue;
@@ -2113,7 +2125,7 @@ function parsePaperExcel(arrayBuffer) {
             }
           }
         }
-        crafts.push({ id: `craft${paperNum}_${crafts.length + 1}`, name: craftName, prices });
+        crafts.push({ id: `craft_${id}_${crafts.length + 1}`, name: craftName, prices });
       }
     }
 

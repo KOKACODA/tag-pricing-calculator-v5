@@ -5,6 +5,20 @@
 
 ---
 
+## [v5.3] - 2026-08-09
+
+### 修复
+- **30+ Sheet 导入 ID 碰撞 Bug**：`parsePaperExcel()` 中不匹配默认简称的纸张 ID 生成逻辑存在碰撞风险
+  - 旧逻辑：`id = "paper" + (sheetIndex + 1)`，与默认 `paper1`~`paper9` 冲突
+  - 新逻辑：用 `usedIds` Set 去重，不匹配的纸张生成 `paper_import_N` 唯一 ID
+  - 修复后 30+ Sheet 导入不再出现纸张价格不可达 / 工艺配置覆盖 / 计算错误
+- **工艺 ID 生成**：改用完整 paperId 拼接（`craft_${id}_${n}`），兼容新 ID 格式
+
+### 备份
+- 创建 `backup/v5.2.1` 分支和 `v5.2.1-stable` Tag，作为报价表组功能改造前的稳定回退点
+
+---
+
 ## [v5.2] - 2026-08-06
 
 ### 变更
