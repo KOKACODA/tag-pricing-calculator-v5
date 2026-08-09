@@ -594,33 +594,42 @@ function togglePaperDropdown(dropdown) {
 
 /**
  * 视口边界检测：弹窗自动避让屏幕边缘
+ * - 动态设置 max-height 确保下拉框始终在视口内可完整滚动
  * - 下方空间不足时向上翻转（flip-up）
  * - 右侧溢出时左移（shift-left）
- * - 弹窗宽度超出容器时切换为全屏固定定位（full-width）
+ * - 超小屏切换为全屏固定定位（full-width）
  */
 function adjustDropdownPosition(dropdown) {
   const options = dropdown.querySelector(".paper-options");
   if (!options) return;
 
-  // 清除上一次的定位类
+  // 清除上一次的定位类和内联 max-height
   options.classList.remove("flip-up", "shift-left", "full-width");
+  options.style.maxHeight = "";
 
   const trigger = dropdown.querySelector(".paper-trigger");
   const triggerRect = trigger.getBoundingClientRect();
-  const optionsRect = options.getBoundingClientRect();
   const vw = window.innerWidth;
   const vh = window.innerHeight;
 
-  // 1. 垂直方向：判断下方空间是否充足
-  const spaceBelow = vh - triggerRect.bottom;
-  const spaceAbove = triggerRect.top;
-  const optionsHeight = optionsRect.height;
+  // 计算上方和下方的可用空间（留 12px 安全边距）
+  const GAP = 6; // trigger 与 options 之间的间距
+  const SAFE_MARGIN = 12;
+  const spaceBelow = vh - triggerRect.bottom - GAP - SAFE_MARGIN;
+  const spaceAbove = triggerRect.top - GAP - SAFE_MARGIN;
 
-  if (spaceBelow < optionsHeight + 10 && spaceAbove > spaceBelow) {
+  // 选择空间更大的方向，并动态设置 max-height
+  if (spaceBelow >= spaceAbove || spaceBelow >= 200) {
+    // 下方打开
+    options.style.maxHeight = Math.min(spaceBelow, 400) + "px";
+  } else {
+    // 上方打开
     options.classList.add("flip-up");
+    options.style.maxHeight = Math.min(spaceAbove, 400) + "px";
   }
 
   // 2. 水平方向：判断右侧是否溢出
+  const optionsRect = options.getBoundingClientRect();
   if (optionsRect.right > vw - 8) {
     options.classList.add("shift-left");
   }
@@ -628,11 +637,7 @@ function adjustDropdownPosition(dropdown) {
   // 3. 超小屏：弹窗宽度超出视口时使用固定全宽定位
   if (triggerRect.width < vw * 0.6 && vw <= 480) {
     options.classList.add("full-width");
-    // 重新计算垂直位置
-    const newRect = options.getBoundingClientRect();
-    if (newRect.bottom > vh - 8) {
-      options.classList.add("flip-up");
-    }
+    options.style.maxHeight = Math.min(Math.max(spaceBelow, spaceAbove), 400) + "px";
   }
 }
 
@@ -640,7 +645,10 @@ function closeAllPaperDropdowns() {
   document.querySelectorAll(".paper-dropdown.open").forEach(dd => {
     dd.classList.remove("open");
     const opt = dd.querySelector(".paper-options");
-    if (opt) opt.classList.remove("flip-up", "shift-left", "full-width");
+    if (opt) {
+      opt.classList.remove("flip-up", "shift-left", "full-width");
+      opt.style.maxHeight = "";
+    }
   });
 }
 
@@ -2838,7 +2846,7 @@ function bindEvents() {
     if (opts) {
       const { scrollTop, scrollHeight, clientHeight } = opts;
       const isAtTop = scrollTop <= 0;
-      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 1;
+      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 2;
       if ((isAtTop && e.deltaY < 0) || (isAtBottom && e.deltaY > 0)) {
         e.preventDefault();
       }
