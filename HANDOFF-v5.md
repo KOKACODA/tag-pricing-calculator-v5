@@ -1,4 +1,4 @@
-# 项目转接文档 — KOKALabel报价系统 v5.0
+# 项目转接文档 — KOKALabel报价系统 v5.6
 
 > **此文件用于新对话窗口接手，请先完整阅读此文档，再阅读 `AGENT-INSTRUCTIONS.md`。**
 
@@ -9,7 +9,7 @@
 | 项目 | 值 |
 |------|-----|
 | 项目名 | KOKALabel报价系统 |
-| 当前版本 | v5.0 |
+| 当前版本 | v5.6 |
 | 架构 | 多文件（CSS / JS / HTML 分离） |
 | GitHub 仓库 | `KOKACODA/tag-pricing-calculator-v5`（Public） |
 | 线上地址 | https://tag-pricing-calculator-v5.pages.dev |
@@ -151,4 +151,4 @@
 
 ---
 
-*文档生成时间：2026-08-06 | 版本：v5.0 | 生成者：TRAE Agent*
+*文档生成时间：2026-08-06 | 最近更新：2026-08-09 | 版本：v5.6 | 生成者：TRAE Agent*

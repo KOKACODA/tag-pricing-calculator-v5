@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v5.0 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v5.6 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -1518,7 +1518,7 @@ function setLocalBackupStatus(html, isError) {
 
 function exportLocalBackup() {
   const data = {
-    version: "5.3",
+    version: "5.6",
     kind: "local-backup",
     exportAt: new Date().toISOString(),
     priceLists: PRICE_LISTS,
@@ -1663,7 +1663,7 @@ function importLocalBackup(file) {
 // -------------------- 导入 / 导出完整配置 --------------------
 function exportFullData() {
   const data = {
-    version: "5.3",
+    version: "5.6",
     exportAt: new Date().toISOString(),
     priceLists: PRICE_LISTS,
     currentPriceListId: CURRENT_PRICE_LIST_ID,
