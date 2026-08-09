@@ -355,9 +355,8 @@
     .paper-option .paper-desc {
       font-size: 11px;
       color: var(--text-secondary);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      word-break: break-all;
+      line-height: 1.4;
     }
 
     @media (max-width: 480px) {
@@ -1321,13 +1320,11 @@
     .paper-option {
       padding: clamp(0.5rem, 2.5vw, 0.5625rem) clamp(0.5rem, 2.5vw, 0.6875rem);
       font-size: clamp(0.75rem, 3.5vw, 0.875rem);
-      overflow: hidden;
     }
     .paper-option .paper-desc {
       font-size: clamp(0.625rem, 3vw, 0.6875rem);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      word-break: break-all;
+      line-height: 1.4;
     }
 
     /* 工艺列表 */
