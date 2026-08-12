@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v5.7 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v5.8 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -94,6 +94,39 @@ function calcAreaCoefficient(area) {
 }
 
 /**
+ * 获取纸张的可选代码列表（007/008 合并为一项），按面积从小到大排列。
+ */
+function getPaperDisplayCodes(paper) {
+  const seen = new Set();
+  const codes = [];
+  for (const spec of paper.specs) {
+    const displayCode = (spec.code === "007" || spec.code === "008") ? "007/008" : spec.code;
+    if (!seen.has(displayCode)) {
+      seen.add(displayCode);
+      codes.push(displayCode);
+    }
+  }
+  return codes;
+}
+
+/**
+ * 按显示代码查找规格（支持 007/008 合并），面积超出时附加面积系数。
+ */
+function findSpecByDisplayCode(paper, displayCode, area) {
+  const spec = paper.specs.find(s => {
+    const dc = (s.code === "007" || s.code === "008") ? "007/008" : s.code;
+    return dc === displayCode;
+  });
+  if (!spec) return null;
+  const result = { ...spec };
+  if (result.code === "007" || result.code === "008") result.code = "007/008";
+  if (area > result.maxArea) {
+    result.areaCoefficient = calcAreaCoefficient(area);
+  }
+  return result;
+}
+
+/**
  * 根据有效面积向上匹配尺寸规格。
  * 面积超过 10000 时使用最大规格（code "100"）并附带面积系数；007 与 008 合并显示为 007/008。
  */
@@ -174,7 +207,14 @@ function calculate(inputs) {
     // 单张含出血面积（单张尺寸 / 展开尺寸目前均按输入长宽直接计算）
     const singleArea = calcBleedArea(length, width);
 
-    const spec = matchSpec(paper, singleArea);
+    // 代码选择：优先使用手动指定的代码，否则按面积自动匹配
+    let spec;
+    if (sheet.manualCode) {
+      spec = findSpecByDisplayCode(paper, sheet.manualCode, singleArea);
+    }
+    if (!spec) {
+      spec = matchSpec(paper, singleArea);
+    }
     if (spec && spec.error) {
       return { error: spec.message };
     }
@@ -223,6 +263,7 @@ function calculate(inputs) {
     }
 
     sheetDetails.push({
+      paperId: paper.id,
       paperName: paper.shortName || paper.name,
       width,
       length,
@@ -500,7 +541,8 @@ function renderSheets() {
       craftIds: old && old.craftIds ? old.craftIds.slice() : [],
       width: old && old.width ? old.width : "55",
       length: old && old.length ? old.length : "30",
-      sizeType: old && old.sizeType ? old.sizeType : "single"
+      sizeType: old && old.sizeType ? old.sizeType : "single",
+      manualCode: old && old.manualCode != null ? old.manualCode : null
     });
   }
   sheetsState = newSheets;
@@ -703,8 +745,9 @@ function onPaperChange(optionEl) {
   const index = Number(optionEl.dataset.sheet);
   const newPaperId = optionEl.dataset.paper;
   sheetsState[index].paperId = newPaperId;
-  // 切换纸张时清空工艺选择
+  // 切换纸张时清空工艺选择和手动代码
   sheetsState[index].craftIds = [];
+  sheetsState[index].manualCode = null;
   closeAllPaperDropdowns();
   renderSheets();
   onCalculate();
@@ -733,6 +776,45 @@ function onSheetSizeChange(e) {
   } else if (input.classList.contains("sheet-size-type")) {
     sheetsState[index].sizeType = input.value;
   }
+  // 尺寸变化时清除手动代码，恢复自动匹配
+  sheetsState[index].manualCode = null;
+  onCalculate();
+}
+
+/**
+ * 手动切换纸张代码（上/下），覆盖自动匹配结果。
+ */
+function onCodeSwitch(sheetIdx, dir) {
+  const state = sheetsState[sheetIdx];
+  if (!state) return;
+  const paper = getPapersByPriceList(CURRENT_PRICE_LIST_ID).find(p => p.id === state.paperId);
+  if (!paper) return;
+  const codes = getPaperDisplayCodes(paper);
+  if (codes.length <= 1) return;
+
+  // 确定当前代码
+  let currentCode = state.manualCode;
+  if (!currentCode) {
+    const w = parseFloat(state.width);
+    const l = parseFloat(state.length);
+    if (w && l) {
+      const area = calcBleedArea(l, w);
+      const spec = matchSpec(paper, area);
+      currentCode = spec.code;
+    }
+  }
+  const currentIdx = codes.indexOf(currentCode);
+  if (currentIdx < 0) return;
+
+  let newIdx;
+  if (dir === "up") {
+    newIdx = Math.max(0, currentIdx - 1);
+  } else {
+    newIdx = Math.min(codes.length - 1, currentIdx + 1);
+  }
+  if (newIdx === currentIdx) return;
+
+  state.manualCode = codes[newIdx];
   onCalculate();
 }
 
@@ -759,7 +841,8 @@ function onCalculate() {
     craftIds: s.craftIds.slice(),
     width: parseFloat(s.width),
     length: parseFloat(s.length),
-    sizeType: s.sizeType
+    sizeType: s.sizeType,
+    manualCode: s.manualCode || null
   }));
 
   // 只要有任何一张纸缺少有效尺寸就清空结果
@@ -784,15 +867,37 @@ function onCalculate() {
   // 渲染各纸张尺寸/面积/代码
   if (els.resSheetTable) {
     const tbody = els.resSheetTable.querySelector("tbody");
-    tbody.innerHTML = result.sheetDetails.map(s => `
+    tbody.innerHTML = result.sheetDetails.map((s, idx) => {
+      // 获取该纸张可选代码列表
+      const paper = getPapersByPriceList(CURRENT_PRICE_LIST_ID).find(p => p.id === s.paperId);
+      const codes = paper ? getPaperDisplayCodes(paper) : [];
+      const currentCodeIdx = codes.indexOf(s.code);
+      const canGoUp = currentCodeIdx > 0;
+      const canGoDown = currentCodeIdx >= 0 && currentCodeIdx < codes.length - 1;
+      const isManual = sheetsState[idx] && sheetsState[idx].manualCode != null;
+      return `
       <tr>
         <td>${escapeHtml(s.paperName)}</td>
         <td>${s.width} × ${s.length}${s.sizeType === "spread" ? "（展开）" : ""}</td>
         <td>${s.area} mm²</td>
-        <td>${escapeHtml(s.code)}</td>
+        <td>
+          <div class="code-switcher${isManual ? " manual" : ""}">
+            <span class="code-text">${escapeHtml(s.code)}${isManual ? '<span class="code-manual-tag">手动</span>' : ''}</span>
+            <div class="code-arrows">
+              <button class="code-arrow up${!canGoUp ? ' disabled' : ''}" data-sheet-idx="${idx}" data-dir="up" ${!canGoUp ? 'disabled' : ''} title="切换到上一档代码">&#9650;</button>
+              <button class="code-arrow down${!canGoDown ? ' disabled' : ''}" data-sheet-idx="${idx}" data-dir="down" ${!canGoDown ? 'disabled' : ''} title="切换到下一档代码">&#9660;</button>
+            </div>
+          </div>
+        </td>
         <td>${s.missing ? '<span class="price-missing">无该批量定价</span>' : '¥ ' + formatMoney(s.unitPrice)}</td>
       </tr>
-    `).join("");
+    `;}).join("");
+    // 绑定代码切换按钮事件
+    tbody.querySelectorAll(".code-arrow:not(.disabled)").forEach(btn => {
+      btn.addEventListener("click", () => {
+        onCodeSwitch(Number(btn.dataset.sheetIdx), btn.dataset.dir);
+      });
+    });
   }
 
   els.resTier.textContent = result.tier + " 张";
@@ -2547,7 +2652,8 @@ function rebuildPaperUI() {
     craftIds: [],
     width: s.width || "",
     length: s.length || "",
-    sizeType: s.sizeType || "custom"
+    sizeType: s.sizeType || "custom",
+    manualCode: null
   }));
   updateTierOptions(false);
   renderSheets();

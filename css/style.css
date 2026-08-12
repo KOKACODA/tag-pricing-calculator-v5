@@ -601,6 +601,70 @@
       border-bottom: none;
     }
 
+    /* ===================== 代码切换器 ===================== */
+    .code-switcher {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .code-switcher .code-text {
+      font-weight: 600;
+      color: var(--brand-dark);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .code-switcher.manual .code-text {
+      color: var(--brand);
+    }
+
+    .code-manual-tag {
+      display: inline-block;
+      font-size: 10px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: var(--brand);
+      color: #fff;
+      font-weight: 500;
+      line-height: 1.4;
+    }
+
+    .code-arrows {
+      display: inline-flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .code-arrow {
+      width: 20px;
+      height: 14px;
+      border: 1px solid var(--border);
+      background: #f8fafc;
+      color: var(--text-secondary);
+      font-size: 8px;
+      line-height: 1;
+      cursor: pointer;
+      border-radius: 3px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+
+    .code-arrow:not(.disabled):hover {
+      background: var(--brand);
+      color: #fff;
+      border-color: var(--brand);
+    }
+
+    .code-arrow.disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
     .price-cards {
       display: flex;
       gap: 12px;
