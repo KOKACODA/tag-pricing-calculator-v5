@@ -126,6 +126,58 @@
       border-bottom: 2px solid var(--brand-light);
     }
 
+    /* ===================== 模式切换器 ===================== */
+    .card-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--brand-light);
+      flex-wrap: wrap;
+    }
+
+    .card-title-row .card-title {
+      margin-bottom: 0;
+      padding-bottom: 0;
+      border-bottom: none;
+    }
+
+    .calc-mode-switcher {
+      display: inline-flex;
+      gap: 0;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1.5px solid var(--brand);
+    }
+
+    .calc-mode-switcher .mode-btn {
+      padding: 7px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      border: none;
+      background: #fff;
+      color: var(--brand);
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .calc-mode-switcher .mode-btn + .mode-btn {
+      border-left: 1.5px solid var(--brand);
+    }
+
+    .calc-mode-switcher .mode-btn.active {
+      background: var(--brand);
+      color: #fff;
+    }
+
+    .calc-mode-switcher .mode-btn:hover:not(.active) {
+      background: var(--brand-light);
+      color: var(--brand-dark);
+    }
+
     /* ===================== 表单组件 ===================== */
     .form-group {
       margin-bottom: 18px;

@@ -6,8 +6,8 @@
   <meta name="googlebot" content="noindex, nofollow">
   <!-- P0 安全：CSP 策略 -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' cdn.sheetjs.com 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';">
-  <title>KOKALabel报价系统 v5.6</title>
-  <link rel="stylesheet" href="css/style.css?v=5.6">
+  <title>KOKALabel报价系统 v5.7</title>
+  <link rel="stylesheet" href="css/style.css?v=5.7">
 </head>
 <body>
   <!-- 顶部导航 -->
@@ -24,7 +24,13 @@
     <!-- 页面1：智能报价计算器 -->
     <section class="page active" id="page-calculator">
       <div class="card">
-        <h2 class="card-title">参数输入</h2>
+        <div class="card-title-row">
+          <h2 class="card-title">参数输入</h2>
+          <div class="calc-mode-switcher">
+            <button class="mode-btn active" data-mode="standard">标准报价</button>
+            <button class="mode-btn" data-mode="direct">直接系数计算</button>
+          </div>
+        </div>
 
         <div class="tier-row">
           <div class="form-group">
@@ -607,6 +613,37 @@
       </div>
 
       <div class="card">
+        <h2 class="card-title">直接系数设置</h2>
+        <div class="setting-desc" style="margin-bottom:12px;color:var(--text-secondary);font-size:13px;">仅在「直接系数计算」模式下使用，独立于毛利系数。直接系数模式下不计算吊绳和邮费，成本 = 纸张 + 工艺，报价 = 成本 × 直接系数。</div>
+        <div id="directCoeffSettings">
+        <div class="level-editor" data-level-id="direct1">
+          <input type="text" class="level-name" value="普通客户" placeholder="等级名称">
+          <input type="number" class="level-coefficient" value="1.5" min="1" step="0.01">
+          <span class="unit">倍</span>
+          <button class="btn danger sm" data-action="remove-direct-level" data-index="0">删除</button>
+        </div>
+      
+        <div class="level-editor" data-level-id="direct2">
+          <input type="text" class="level-name" value="优质客户" placeholder="等级名称">
+          <input type="number" class="level-coefficient" value="1.45" min="1" step="0.01">
+          <span class="unit">倍</span>
+          <button class="btn danger sm" data-action="remove-direct-level" data-index="1">删除</button>
+        </div>
+      
+        <div class="level-editor" data-level-id="direct3">
+          <input type="text" class="level-name" value="大客户" placeholder="等级名称">
+          <input type="number" class="level-coefficient" value="1.4" min="1" step="0.01">
+          <span class="unit">倍</span>
+          <button class="btn danger sm" data-action="remove-direct-level" data-index="2">删除</button>
+        </div>
+      </div>
+        <div class="btn-group" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+          <button class="btn secondary sm" id="addDirectLevelBtn">+ 新增等级</button>
+          <button class="btn secondary sm" id="resetDirectLevelBtn">恢复默认</button>
+        </div>
+      </div>
+
+      <div class="card">
         <h2 class="card-title">面积系数说明</h2>
         <div class="setting-row" style="display:block;">
           <div class="setting-info" style="margin-bottom:12px;">
@@ -861,7 +898,7 @@
         <div class="setting-row">
           <div class="setting-info">
             <div class="setting-label">当前版本</div>
-            <div class="setting-desc">KOKALabel报价系统 v5.6</div>
+            <div class="setting-desc">KOKALabel报价系统 v5.7</div>
           </div>
           <div class="setting-control">
             <span class="placeholder-badge">正式版</span>
@@ -896,6 +933,6 @@
 
   <!-- P1.4: SheetJS defer 备用加载（不阻塞渲染），app.js 中 loadSheetJS() 为按需加载兜底 -->
   <script defer src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-  <script src="js/data.js?v=5.6"></script>
-  <script src="js/app.js?v=5.6"></script>
+  <script src="js/data.js?v=5.7"></script>
+  <script src="js/app.js?v=5.7"></script>
 </body></html>

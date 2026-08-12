@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v5.6 - 数据配置层
+// KOKALabel报价系统 v5.7 - 数据配置层
 // ============================================================
 "use strict";
 
@@ -1476,6 +1476,17 @@ const DEFAULT_CUSTOMER_LEVELS = [
 ];
 
 /**
+ * 直接系数配置（仅用于"直接系数计算"模式）。
+ * 格式与客户等级一致，但独立存储、独立修改。
+ * 直接系数模式下不计算吊绳和邮费，成本 = 纸张 + 工艺，报价 = 成本 × 直接系数。
+ */
+const DEFAULT_DIRECT_COEFF_LEVELS = [
+  { id: "direct1", name: "普通客户", coefficient: 1.5 },
+  { id: "direct2", name: "优质客户", coefficient: 1.45 },
+  { id: "direct3", name: "大客户", coefficient: 1.4 }
+];
+
+/**
  * 持久化策略：纸张/工艺/吊绳/邮费/客户等级/报价表组配置均读写 localStorage。
  * 纸张按报价表隔离（通过 priceListId 字段），吊绳/邮费/客户等级为全局共享。
  * EPHEMERAL_KEYS 已提前定义为空数组，不拦截任何 key。
@@ -1557,6 +1568,9 @@ SHIPPING_CONFIG = loadFromStorage("shippingConfig", DEFAULT_SHIPPING_CONFIG.map(
 })();
 // 客户等级（毛利系数）持久化到 localStorage，刷新后保留用户自定义
 let CUSTOMER_LEVELS = loadFromStorage("customerLevels", DEFAULT_CUSTOMER_LEVELS.map(l => ({ ...l })));
+
+// 直接系数持久化到 localStorage，独立于毛利系数
+let DIRECT_COEFF_LEVELS = loadFromStorage("directCoeffLevels", DEFAULT_DIRECT_COEFF_LEVELS.map(l => ({ ...l })));
 
 // v5.2 迁移：旧版默认系数（1.3 / 1.15 / 1.05）自动更新为新版（1.2 / 1.15 / 1.1）
 // 仅当 localStorage 中的值与旧默认完全一致时才迁移，用户自定义值不受影响

@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v5.6 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v5.7 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -134,10 +134,11 @@ function hasExactTier(pricesObj, tier) {
  * 标准计价流程：支持多纸张、每张纸独立吊牌展开尺寸、统一批量档位。
  */
 function calculate(inputs) {
-  const { sheetCount, tier, sheets, ropeId, regionId } = inputs;
+  const { sheetCount, tier, sheets, ropeId, regionId, mode } = inputs;
+  const isDirect = mode === "direct";
 
-  // 校验基础参数
-  if (!sheetCount || !tier || !sheets || !ropeId || !regionId) {
+  // 直接系数模式不需要 ropeId 和 regionId
+  if (!sheetCount || !tier || !sheets) {
     return null;
   }
   if (sheetCount <= 0 || tier <= 0) {
@@ -147,9 +148,10 @@ function calculate(inputs) {
     return null;
   }
 
-  const rope = ROPE_CONFIG.find(r => r.id === ropeId);
-  const region = SHIPPING_CONFIG.find(s => s.id === regionId);
-  if (!rope || !region) return null;
+  // 标准模式需要 ropeId 和 regionId
+  const rope = isDirect ? null : ROPE_CONFIG.find(r => r.id === ropeId);
+  const region = isDirect ? null : SHIPPING_CONFIG.find(s => s.id === regionId);
+  if (!isDirect && (!rope || !region)) return null;
 
   // 逐张纸计算：每张纸有独立的宽、长、尺寸类型
   let paperTotal = 0;
@@ -237,35 +239,49 @@ function calculate(inputs) {
     });
   }
 
-  // 吊绳费用
-  const ropePrice = hasExactTier(rope.prices, tier)
-    ? Number(rope.prices[tier])
-    : null;
-  if (ropePrice == null) {
-    hasMissingTier = true;
-    warnings.push(`吊绳「${rope.name}」无 ${tier} 张批量定价`);
+  // 吊绳费用（直接系数模式跳过）
+  let ropePrice = null;
+  if (!isDirect) {
+    ropePrice = hasExactTier(rope.prices, tier)
+      ? Number(rope.prices[tier])
+      : null;
+    if (ropePrice == null) {
+      hasMissingTier = true;
+      warnings.push(`吊绳「${rope.name}」无 ${tier} 张批量定价`);
+    }
   }
 
-  // 邮费（以第一张纸的面积判断小面积折扣）
-  let shippingPrice = hasExactTier(region.basePrices, tier)
-    ? Number(region.basePrices[tier])
-    : null;
-  if (shippingPrice != null && sheetDetails.length && sheetDetails[0].area < region.smallAreaThreshold) {
-    shippingPrice *= region.discount;
-  } else if (shippingPrice == null) {
-    hasMissingTier = true;
-    warnings.push(`地区「${region.name}」无 ${tier} 张批量定价`);
+  // 邮费（直接系数模式跳过）
+  let shippingPrice = null;
+  if (!isDirect) {
+    shippingPrice = hasExactTier(region.basePrices, tier)
+      ? Number(region.basePrices[tier])
+      : null;
+    if (shippingPrice != null && sheetDetails.length && sheetDetails[0].area < region.smallAreaThreshold) {
+      shippingPrice *= region.discount;
+    } else if (shippingPrice == null) {
+      hasMissingTier = true;
+      warnings.push(`地区「${region.name}」无 ${tier} 张批量定价`);
+    }
   }
 
-  // 成本合计（仅累加有定价的部分；缺价时显示为"部分缺价"）
-  const costKnown = [paperTotal, craftTotal, ropePrice, shippingPrice].every(v => v != null);
-  const cost = costKnown
-    ? (paperTotal + craftTotal + ropePrice + shippingPrice)
-    : (paperTotal + craftTotal + (ropePrice || 0) + (shippingPrice || 0)); // 仍把已知的相加，但标记不完整
-  const costIncomplete = !costKnown;
+  // 成本合计：直接系数模式 = 纸张 + 工艺；标准模式 = 纸张 + 工艺 + 吊绳 + 邮费
+  let cost, costKnown, costIncomplete;
+  if (isDirect) {
+    cost = paperTotal + craftTotal;
+    costKnown = true;
+    costIncomplete = false;
+  } else {
+    costKnown = [paperTotal, craftTotal, ropePrice, shippingPrice].every(v => v != null);
+    cost = costKnown
+      ? (paperTotal + craftTotal + ropePrice + shippingPrice)
+      : (paperTotal + craftTotal + (ropePrice || 0) + (shippingPrice || 0));
+    costIncomplete = !costKnown;
+  }
 
-  // 三个客户等级的建议报价
-  const pricesByLevel = CUSTOMER_LEVELS.map(level => ({
+  // 报价系数：直接系数模式用 DIRECT_COEFF_LEVELS，标准模式用 CUSTOMER_LEVELS
+  const coeffLevels = isDirect ? DIRECT_COEFF_LEVELS : CUSTOMER_LEVELS;
+  const pricesByLevel = coeffLevels.map(level => ({
     levelId: level.id,
     levelName: level.name,
     coefficient: level.coefficient,
@@ -382,12 +398,24 @@ const els = {
   historyTable: document.getElementById("historyTable"),
   historyEmpty: document.getElementById("historyEmpty"),
   addHistoryPlaceholderBtn: document.getElementById("addHistoryPlaceholderBtn"),
-  clearHistoryBtn: document.getElementById("clearHistoryBtn")
+  clearHistoryBtn: document.getElementById("clearHistoryBtn"),
+  // 模式切换
+  modeBtns: document.querySelectorAll(".mode-btn"),
+  // 直接系数设置
+  directCoeffSettings: document.getElementById("directCoeffSettings"),
+  addDirectLevelBtn: document.getElementById("addDirectLevelBtn"),
+  resetDirectLevelBtn: document.getElementById("resetDirectLevelBtn"),
+  // 报价结果中需要模式控制的行
+  resRopePriceRow: null, // 稍后在 onCalculate 中动态获取
+  resShippingPriceRow: null,
+  // 默认报价标签
+  defaultPriceLabel: document.querySelector("#priceCards") ? document.querySelector("#priceCards").previousElementSibling : null
 };
 
 let currentPaperIndex = 2;
 let toastTimer = null;
 let sheetsState = [];
+let calcMode = "standard"; // "standard" | "direct"
 
 // -------------------- 初始化下拉选项 --------------------
 // 根据 APP_PROFILE.defaultRope 生成吊绳单选项 HTML（顶层作用域，供 initOptions 和 rebuildRopeUI 共用）
@@ -715,7 +743,12 @@ function onCalculate() {
   const ropeId = els.rope.querySelector('input[name="rope"]:checked')?.value || "";
   const regionId = els.region.value;
 
-  if (!sheetCount || !tier || !ropeId || !regionId || sheetCount <= 0 || tier <= 0) {
+  // 直接系数模式不需要 ropeId 和 regionId
+  if (!sheetCount || !tier || sheetCount <= 0 || tier <= 0) {
+    clearResult();
+    return;
+  }
+  if (calcMode === "standard" && (!ropeId || !regionId)) {
     clearResult();
     return;
   }
@@ -735,7 +768,7 @@ function onCalculate() {
     return;
   }
 
-  const result = calculate({ sheetCount, tier, sheets, ropeId, regionId });
+  const result = calculate({ sheetCount, tier, sheets, ropeId, regionId, mode: calcMode });
 
   if (!result) {
     clearResult();
@@ -796,8 +829,19 @@ function onCalculate() {
   els.resPaperOriginalPrice.innerHTML = renderPaperTotal(s => s.originalUnitPrice, s => s.baseOriginalUnitPrice);
   els.resPaperPrice.innerHTML = renderPaperTotal(s => s.unitPrice, s => s.baseUnitPrice);
   els.resCraftPrice.innerHTML = result.craftTotal ? "¥ " + formatMoney(result.craftTotal) : '<span class="price-missing">无该批量定价</span>';
-  els.resRopePrice.innerHTML = result.ropePrice != null ? "¥ " + formatMoney(result.ropePrice) : '<span class="price-missing">无该批量定价</span>';
-  els.resShippingPrice.innerHTML = result.shippingPrice != null ? "¥ " + formatMoney(result.shippingPrice) : '<span class="price-missing">无该批量定价</span>';
+
+  // 吊绳/邮费行：直接系数模式隐藏
+  const ropeRow = els.resRopePrice ? els.resRopePrice.closest(".result-row") : null;
+  const shippingRow = els.resShippingPrice ? els.resShippingPrice.closest(".result-row") : null;
+  if (calcMode === "direct") {
+    if (ropeRow) ropeRow.style.display = "none";
+    if (shippingRow) shippingRow.style.display = "none";
+  } else {
+    if (ropeRow) ropeRow.style.display = "";
+    if (shippingRow) shippingRow.style.display = "";
+    els.resRopePrice.innerHTML = result.ropePrice != null ? "¥ " + formatMoney(result.ropePrice) : '<span class="price-missing">无该批量定价</span>';
+    els.resShippingPrice.innerHTML = result.shippingPrice != null ? "¥ " + formatMoney(result.shippingPrice) : '<span class="price-missing">无该批量定价</span>';
+  }
   els.resCost.innerHTML = result.costIncomplete
     ? '<span class="price-missing">部分缺价</span>'
     : "¥ " + formatMoney(result.cost);
@@ -860,25 +904,36 @@ function onCalculate() {
     els.tierQuickSwitch.style.display = "flex";
   }
 
-  // -------------------- 临时毛利系数 & 邮费快速修改 --------------------
+  // -------------------- 临时系数 & 邮费快速修改 --------------------
   // 缓存本次计算结果供临时系数/邮费修改使用
   _lastResult = result;
 
-  // 显示临时毛利系数输入栏
+  // 临时系数输入栏：直接系数模式下标签改为"临时直接系数"
   if (els.customCoeffBar) {
     els.customCoeffBar.style.display = "flex";
+    const labelEl = els.customCoeffBar.querySelector(".custom-coeff-label");
+    if (labelEl) {
+      labelEl.textContent = calcMode === "direct" ? "临时直接系数：" : "临时毛利系数：";
+    }
     renderCustomCoeffCard();
   }
 
-  // 显示邮费快速修改栏
+  // 邮费快速修改栏：直接系数模式隐藏
   if (els.shippingOverrideBar) {
-    const hasShipping = result.shippingPrice != null;
-    els.shippingOverrideBar.style.display = "flex";
-    // 如果邮费输入框为空且当前有邮费，预填原始邮费
-    if (hasShipping && els.shippingOverrideInput && !els.shippingOverrideInput.value) {
-      // 不自动填充，让用户主动输入
+    if (calcMode === "direct") {
+      els.shippingOverrideBar.style.display = "none";
+      if (els.shippingOverrideInput) els.shippingOverrideInput.value = "";
+      if (els.shippingOverrideCards) { els.shippingOverrideCards.style.display = "none"; els.shippingOverrideCards.innerHTML = ""; }
+      if (els.shippingOverrideLabel) els.shippingOverrideLabel.style.display = "none";
+    } else {
+      els.shippingOverrideBar.style.display = "flex";
+      renderShippingOverrideCards();
     }
-    renderShippingOverrideCards();
+  }
+
+  // 默认报价标签：直接系数模式改为"直接系数报价"
+  if (els.defaultPriceLabel) {
+    els.defaultPriceLabel.textContent = calcMode === "direct" ? "直接系数报价" : "默认报价（原邮费）";
   }
 }
 
@@ -951,8 +1006,18 @@ function clearResult() {
   els.resPaperPrice.textContent = "-";
   els.resPaperOriginalPrice.textContent = "-";
   els.resCraftPrice.textContent = "-";
-  els.resRopePrice.textContent = "-";
-  els.resShippingPrice.textContent = "-";
+  // 吊绳/邮费行在直接系数模式下保持隐藏
+  const ropeRow = els.resRopePrice ? els.resRopePrice.closest(".result-row") : null;
+  const shippingRow = els.resShippingPrice ? els.resShippingPrice.closest(".result-row") : null;
+  if (calcMode === "direct") {
+    if (ropeRow) ropeRow.style.display = "none";
+    if (shippingRow) shippingRow.style.display = "none";
+  } else {
+    if (ropeRow) ropeRow.style.display = "";
+    if (shippingRow) shippingRow.style.display = "";
+    els.resRopePrice.textContent = "-";
+    els.resShippingPrice.textContent = "-";
+  }
   els.resCost.textContent = "-";
   if (els.resWarnings) {
     els.resWarnings.innerHTML = "";
@@ -1189,6 +1254,91 @@ function resetCustomerLevels() {
   showToast("已恢复默认等级");
 }
 
+// -------------------- 个人主页：直接系数渲染 --------------------
+function renderDirectCoeffSettings() {
+  if (!els.directCoeffSettings) return;
+  els.directCoeffSettings.innerHTML = DIRECT_COEFF_LEVELS.map((level, index) => `
+    <div class="level-editor" data-level-id="${level.id}">
+      <input type="text" class="level-name" value="${escapeHtml(level.name)}" placeholder="等级名称" />
+      <input type="number" class="level-coefficient" value="${level.coefficient}" min="1" step="0.01" />
+      <span class="unit">倍</span>
+      <button class="btn danger sm" data-action="remove-direct-level" data-index="${index}">删除</button>
+    </div>
+  `).join("");
+
+  // 绑定删除按钮
+  els.directCoeffSettings.querySelectorAll("[data-action='remove-direct-level']").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const index = Number(btn.dataset.index);
+      if (DIRECT_COEFF_LEVELS.length <= 1) {
+        showToast("至少保留一个直接系数等级");
+        return;
+      }
+      const levelName = DIRECT_COEFF_LEVELS[index]?.name || "该等级";
+      if (!confirm(`确定要删除直接系数等级「${levelName}」吗？\n\n删除后不可撤销，如需恢复可点击「恢复默认」。`)) return;
+      DIRECT_COEFF_LEVELS.splice(index, 1);
+      saveToStorage("directCoeffLevels", DIRECT_COEFF_LEVELS);
+      renderDirectCoeffSettings();
+      onCalculate();
+      showToast("已删除直接系数等级");
+    });
+  });
+
+  // 实时保存输入变化
+  els.directCoeffSettings.querySelectorAll(".level-name, .level-coefficient").forEach(input => {
+    input.addEventListener("change", () => {
+      const rows = els.directCoeffSettings.querySelectorAll(".level-editor");
+      DIRECT_COEFF_LEVELS = Array.from(rows).map(row => ({
+        id: row.dataset.levelId || generateId(),
+        name: row.querySelector(".level-name").value.trim() || "未命名",
+        coefficient: parseFloat(row.querySelector(".level-coefficient").value) || 1
+      }));
+      saveToStorage("directCoeffLevels", DIRECT_COEFF_LEVELS);
+      onCalculate();
+      showToast("直接系数已更新");
+    });
+  });
+}
+
+function addDirectLevel() {
+  DIRECT_COEFF_LEVELS.push({
+    id: generateId(),
+    name: "新客户等级 " + (DIRECT_COEFF_LEVELS.length + 1),
+    coefficient: 1.3
+  });
+  saveToStorage("directCoeffLevels", DIRECT_COEFF_LEVELS);
+  renderDirectCoeffSettings();
+  onCalculate();
+  showToast("已新增直接系数等级");
+}
+
+function resetDirectLevels() {
+  DIRECT_COEFF_LEVELS = DEFAULT_DIRECT_COEFF_LEVELS.map(l => ({ ...l }));
+  saveToStorage("directCoeffLevels", DIRECT_COEFF_LEVELS);
+  renderDirectCoeffSettings();
+  onCalculate();
+  showToast("已恢复默认直接系数");
+}
+
+// -------------------- 模式切换 --------------------
+function switchCalcMode(mode) {
+  calcMode = mode;
+  els.modeBtns.forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.mode === mode);
+  });
+  // 直接系数模式隐藏吊绳和邮费输入区域
+  const ropeGroup = els.rope ? els.rope.closest(".form-group") : null;
+  const regionGroup = els.region ? els.region.closest(".form-group") : null;
+  if (mode === "direct") {
+    if (ropeGroup) ropeGroup.style.display = "none";
+    if (regionGroup) regionGroup.style.display = "none";
+  } else {
+    if (ropeGroup) ropeGroup.style.display = "";
+    if (regionGroup) regionGroup.style.display = "";
+  }
+  onCalculate();
+}
+
 /**
  * 一键恢复所有配置为出厂默认（纸张 / 工艺 / 吊绳 / 客户等级）。
  * 仅清 4 个 key 的 localStorage；保留报价历史、本地快照、APP_PROFILE、个人偏好等。
@@ -1198,7 +1348,7 @@ function resetToDefaults() {
   const confirmMsg = "将清空以下本地修改并恢复出厂默认：\n\n• 报价表组（恢复为单个1号报价表）\n• 纸张配置（9 张1号报价表）\n• 工艺配置（含 烫金/UV/鸡眼/凹凸 等）\n• 吊绳配置\n• 邮费配置\n• 客户等级\n\n报价历史与本地快照不会被删除。\n\n确定继续？";
   if (!confirm(confirmMsg)) return;
 
-  const keysToReset = ["paperConfig", "craftConfig", "ropeConfig", "shippingConfig", "customerLevels", "priceLists", "currentPriceListId"];
+  const keysToReset = ["paperConfig", "craftConfig", "ropeConfig", "shippingConfig", "customerLevels", "directCoeffLevels", "priceLists", "currentPriceListId"];
   keysToReset.forEach(k => {
     try { localStorage.removeItem("tagPricing_" + k); } catch (e) { /* 忽略 */ }
   });
@@ -1217,10 +1367,12 @@ function resetToDefaults() {
   ROPE_CONFIG = DEFAULT_ROPE_CONFIG.map(r => ({ ...r, prices: { ...r.prices } }));
   SHIPPING_CONFIG = DEFAULT_SHIPPING_CONFIG.map(s => ({ ...s, basePrices: { ...s.basePrices } }));
   CUSTOMER_LEVELS = DEFAULT_CUSTOMER_LEVELS.map(l => ({ ...l }));
+  DIRECT_COEFF_LEVELS = DEFAULT_DIRECT_COEFF_LEVELS.map(l => ({ ...l }));
   currentPaperIndex = 0;
 
   rebuildPaperUI();
   renderLevelSettings();
+  renderDirectCoeffSettings();
   renderRopeRadios();
   initOptions();
   // 重新填充下拉框默认值
@@ -1241,7 +1393,7 @@ function resetAllLocalSettings() {
   if (!confirm(confirmMsg)) return;
 
   // 清除所有本地配置 key（保留 history 和 snapshots）
-  const keysToWipe = ["paperConfig", "craftConfig", "ropeConfig", "shippingConfig", "customerLevels", "appProfile", "priceLists", "currentPriceListId"];
+  const keysToWipe = ["paperConfig", "craftConfig", "ropeConfig", "shippingConfig", "customerLevels", "directCoeffLevels", "appProfile", "priceLists", "currentPriceListId"];
   keysToWipe.forEach(k => {
     try { localStorage.removeItem("tagPricing_" + k); } catch (e) { /* 忽略 */ }
   });
@@ -1301,6 +1453,7 @@ function saveProfile() {
   };
   saveToStorage("appProfile", APP_PROFILE);
   saveToStorage("customerLevels", CUSTOMER_LEVELS);
+  saveToStorage("directCoeffLevels", DIRECT_COEFF_LEVELS);
   showToast("设置已保存");
   onCalculate();
 }
@@ -1308,6 +1461,7 @@ function saveProfile() {
 function exportProfile() {
   const data = {
     customerLevels: CUSTOMER_LEVELS,
+    directCoeffLevels: DIRECT_COEFF_LEVELS,
     appProfile: APP_PROFILE,
     exportAt: new Date().toISOString()
   };
@@ -2764,8 +2918,15 @@ function bindEvents() {
   // 个人主页事件
   if (els.addLevelBtn) els.addLevelBtn.addEventListener("click", addCustomerLevel);
   if (els.resetLevelBtn) els.resetLevelBtn.addEventListener("click", resetCustomerLevels);
+  if (els.addDirectLevelBtn) els.addDirectLevelBtn.addEventListener("click", addDirectLevel);
+  if (els.resetDirectLevelBtn) els.resetDirectLevelBtn.addEventListener("click", resetDirectLevels);
   if (els.saveProfileBtn) els.saveProfileBtn.addEventListener("click", saveProfile);
   if (els.exportProfileBtn) els.exportProfileBtn.addEventListener("click", exportProfile);
+
+  // 模式切换
+  els.modeBtns.forEach(btn => {
+    btn.addEventListener("click", () => switchCalcMode(btn.dataset.mode));
+  });
 
   // 报价小数位数：实时保存并立即重算
   if (els.decimalPlaces) {
@@ -2865,6 +3026,7 @@ function bindEvents() {
     ["clearResult", clearResult],
     ["loadProfileToUI", loadProfileToUI],
     ["renderLevelSettings", renderLevelSettings],
+    ["renderDirectCoeffSettings", renderDirectCoeffSettings],
     ["renderSnapshots", renderSnapshots],
     ["renderHistory", renderHistory],
     ["renderPriceListSelector", renderPriceListSelector]
