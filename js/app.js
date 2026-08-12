@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v5.8 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v5.9 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -91,6 +91,28 @@ function calcBleedArea(length, width) {
 function calcAreaCoefficient(area) {
   if (area <= 10000) return 1;
   return Math.round((area / 10000) * 100) / 100;
+}
+
+/**
+ * 根据批量档位获取直接系数等级列表。
+ * 档位在 DIRECT_COEFF_TIER_RULES 覆盖范围内时，按 max/min 等差插值计算各等级系数。
+ * 未覆盖的档位（如 500 张）使用用户设置的 DIRECT_COEFF_LEVELS 原值。
+ * 返回格式与 DIRECT_COEFF_LEVELS 一致，但 coefficient 已按档位调整。
+ */
+function getDirectCoeffsForTier(tier) {
+  const levels = DIRECT_COEFF_LEVELS;
+  const rule = DIRECT_COEFF_TIER_RULES.find(r => tier >= r.tierMin && tier <= r.tierMax);
+  if (!rule) return levels.map(l => ({ ...l }));
+
+  const n = levels.length;
+  if (n <= 1) return [{ ...levels[0], coefficient: rule.max }];
+
+  // 等差插值：max → min
+  const step = (rule.max - rule.min) / (n - 1);
+  return levels.map((l, i) => ({
+    ...l,
+    coefficient: Math.round((rule.max - step * i) * 100) / 100
+  }));
 }
 
 /**
@@ -320,8 +342,8 @@ function calculate(inputs) {
     costIncomplete = !costKnown;
   }
 
-  // 报价系数：直接系数模式用 DIRECT_COEFF_LEVELS，标准模式用 CUSTOMER_LEVELS
-  const coeffLevels = isDirect ? DIRECT_COEFF_LEVELS : CUSTOMER_LEVELS;
+  // 报价系数：直接系数模式按档位自动调整，标准模式用 CUSTOMER_LEVELS
+  const coeffLevels = isDirect ? getDirectCoeffsForTier(tier) : CUSTOMER_LEVELS;
   const pricesByLevel = coeffLevels.map(level => ({
     levelId: level.id,
     levelName: level.name,
@@ -978,9 +1000,10 @@ function onCalculate() {
     }
   }
 
-  // 渲染三个客户等级报价卡片
+  // 渲染三个客户等级报价卡片（直接系数模式在右上角显示系数）
   els.priceCards.innerHTML = result.pricesByLevel.map((item, idx) => `
     <div class="price-card${idx === 0 ? " highlight" : ""}">
+      ${calcMode === "direct" ? `<span class="coeff-badge">×${item.coefficient}</span>` : ""}
       <div class="level-name">${escapeHtml(item.levelName)}</div>
       <div class="level-price">${result.costIncomplete
         ? '<span class="price-missing">部分缺价</span>'
@@ -1060,6 +1083,7 @@ function renderCustomCoeffCard() {
   const price = _lastResult.cost * coeff;
   els.customPriceCard.innerHTML = `
     <div class="price-card custom-coeff">
+      ${calcMode === "direct" ? `<span class="coeff-badge">×${coeff}</span>` : ""}
       <div class="level-name">临时系数 ${coeff}</div>
       <div class="level-price">${_lastResult.costIncomplete
         ? '<span class="price-missing">部分缺价</span>'

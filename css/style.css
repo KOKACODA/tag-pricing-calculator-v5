@@ -677,6 +677,26 @@
       background: #f8fafc;
       border: 2px solid var(--border);
       border-radius: var(--radius);
+      position: relative;
+    }
+
+    /* 直接系数徽章（右上角） */
+    .price-card .coeff-badge {
+      position: absolute;
+      top: 6px;
+      right: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--brand);
+      background: rgba(15, 111, 196, 0.1);
+      padding: 2px 7px;
+      border-radius: 4px;
+      line-height: 1.4;
+    }
+
+    .price-card.highlight .coeff-badge {
+      color: var(--danger);
+      background: rgba(220, 38, 38, 0.1);
     }
 
     .price-card.highlight {

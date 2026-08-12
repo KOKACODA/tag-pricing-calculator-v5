@@ -6,8 +6,8 @@
   <meta name="googlebot" content="noindex, nofollow">
   <!-- P0 安全：CSP 策略 -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' cdn.sheetjs.com 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';">
-  <title>KOKALabel报价系统 v5.8</title>
-  <link rel="stylesheet" href="css/style.css?v=5.8">
+  <title>KOKALabel报价系统 v5.9</title>
+  <link rel="stylesheet" href="css/style.css?v=5.9">
 </head>
 <body>
   <!-- 顶部导航 -->
@@ -614,7 +614,7 @@
 
       <div class="card">
         <h2 class="card-title">直接系数设置</h2>
-        <div class="setting-desc" style="margin-bottom:12px;color:var(--text-secondary);font-size:13px;">仅在「直接系数计算」模式下使用，独立于毛利系数。直接系数模式下不计算吊绳和邮费，成本 = 纸张 + 工艺，报价 = 成本 × 直接系数。</div>
+        <div class="setting-desc" style="margin-bottom:12px;color:var(--text-secondary);font-size:13px;">仅在「直接系数计算」模式下使用，独立于毛利系数。直接系数模式下不计算吊绳和邮费，成本 = 纸张 + 工艺，报价 = 成本 × 直接系数。<br><br><strong>批量档位自动调整规则：</strong>系数会根据批量档位自动调整最高/最低值，中间等级按等差插值：<br>• 1000-4000 张：1.6 / 1.5<br>• 5000-10000 张：1.5 / 1.45<br>• 20000 张以上：1.45 / 1.4<br>• 500 张及以下：使用下方设置值（默认 1.5 / 1.45 / 1.4）</div>
         <div id="directCoeffSettings">
         <div class="level-editor" data-level-id="direct1">
           <input type="text" class="level-name" value="普通客户" placeholder="等级名称">
@@ -898,7 +898,7 @@
         <div class="setting-row">
           <div class="setting-info">
             <div class="setting-label">当前版本</div>
-            <div class="setting-desc">KOKALabel报价系统 v5.8</div>
+            <div class="setting-desc">KOKALabel报价系统 v5.9</div>
           </div>
           <div class="setting-control">
             <span class="placeholder-badge">正式版</span>
@@ -933,6 +933,6 @@
 
   <!-- P1.4: SheetJS defer 备用加载（不阻塞渲染），app.js 中 loadSheetJS() 为按需加载兜底 -->
   <script defer src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-  <script src="js/data.js?v=5.8"></script>
-  <script src="js/app.js?v=5.8"></script>
+  <script src="js/data.js?v=5.9"></script>
+  <script src="js/app.js?v=5.9"></script>
 </body></html>

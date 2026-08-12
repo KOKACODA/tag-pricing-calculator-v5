@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v5.8 - 数据配置层
+// KOKALabel报价系统 v5.9 - 数据配置层
 // ============================================================
 "use strict";
 
@@ -1479,11 +1479,26 @@ const DEFAULT_CUSTOMER_LEVELS = [
  * 直接系数配置（仅用于"直接系数计算"模式）。
  * 格式与客户等级一致，但独立存储、独立修改。
  * 直接系数模式下不计算吊绳和邮费，成本 = 纸张 + 工艺，报价 = 成本 × 直接系数。
+ *
+ * 注意：直接系数模式下，系数会根据批量档位自动调整（见 DIRECT_COEFF_TIER_RULES）。
+ * 用户在此处设置的系数值作为 500 张档位的默认值，其他档位按规则自动覆盖。
  */
 const DEFAULT_DIRECT_COEFF_LEVELS = [
   { id: "direct1", name: "普通客户", coefficient: 1.5 },
   { id: "direct2", name: "优质客户", coefficient: 1.45 },
   { id: "direct3", name: "大客户", coefficient: 1.4 }
+];
+
+/**
+ * 直接系数批量档位规则：根据批量档位自动调整最高/最低系数。
+ * max = 最高系数（普通客户），min = 最低系数（大客户）。
+ * 中间等级按等差插值自动计算。
+ * 未覆盖的档位（如 500 张）使用用户设置的默认 DIRECT_COEFF_LEVELS。
+ */
+const DIRECT_COEFF_TIER_RULES = [
+  { tierMin: 1000,  tierMax: 4000,  max: 1.6,  min: 1.5  },
+  { tierMin: 5000,  tierMax: 10000, max: 1.5,  min: 1.45 },
+  { tierMin: 20000, tierMax: Infinity, max: 1.45, min: 1.4 }
 ];
 
 /**
