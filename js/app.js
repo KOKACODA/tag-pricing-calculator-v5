@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v5.9 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v6.0 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -468,6 +468,10 @@ const els = {
   directCoeffSettings: document.getElementById("directCoeffSettings"),
   addDirectLevelBtn: document.getElementById("addDirectLevelBtn"),
   resetDirectLevelBtn: document.getElementById("resetDirectLevelBtn"),
+  // 直接系数档位规则
+  directTierRules: document.getElementById("directTierRules"),
+  addTierRuleBtn: document.getElementById("addTierRuleBtn"),
+  resetTierRulesBtn: document.getElementById("resetTierRulesBtn"),
   // 报价结果中需要模式控制的行
   resRopePriceRow: null, // 稍后在 onCalculate 中动态获取
   resShippingPriceRow: null,
@@ -1449,6 +1453,84 @@ function resetDirectLevels() {
   showToast("已恢复默认直接系数");
 }
 
+// -------------------- 个人主页：直接系数档位规则渲染 --------------------
+function renderDirectTierRules() {
+  if (!els.directTierRules) return;
+  els.directTierRules.innerHTML = DIRECT_COEFF_TIER_RULES.map((rule, index) => {
+    const maxDisplay = rule.tierMax === Infinity ? "" : rule.tierMax;
+    return `
+    <div class="tier-rule-editor" data-rule-index="${index}">
+      <input type="number" class="rule-tier-min" value="${rule.tierMin}" min="0" step="1" placeholder="最小张数" />
+      <span class="rule-sep">~</span>
+      <input type="number" class="rule-tier-max" value="${maxDisplay}" min="0" step="1" placeholder="无上限留空" />
+      <span class="rule-unit">张</span>
+      <span class="rule-coeff-label">系数</span>
+      <input type="number" class="rule-max" value="${rule.max}" min="1" step="0.01" placeholder="最高" />
+      <span class="rule-sep">~</span>
+      <input type="number" class="rule-min" value="${rule.min}" min="1" step="0.01" placeholder="最低" />
+      <button class="btn danger sm" data-action="remove-tier-rule" data-index="${index}">删除</button>
+    </div>
+  `;}).join("");
+
+  // 绑定删除按钮
+  els.directTierRules.querySelectorAll("[data-action='remove-tier-rule']").forEach(btn => {
+    btn.addEventListener("click", () => {
+      if (DIRECT_COEFF_TIER_RULES.length <= 1) {
+        showToast("至少保留一条档位规则");
+        return;
+      }
+      const index = Number(btn.dataset.index);
+      DIRECT_COEFF_TIER_RULES.splice(index, 1);
+      saveToStorage("directCoeffTierRules", DIRECT_COEFF_TIER_RULES);
+      renderDirectTierRules();
+      onCalculate();
+      showToast("已删除档位规则");
+    });
+  });
+
+  // 实时保存输入变化
+  els.directTierRules.querySelectorAll("input").forEach(input => {
+    input.addEventListener("change", () => {
+      const rows = els.directTierRules.querySelectorAll(".tier-rule-editor");
+      DIRECT_COEFF_TIER_RULES = Array.from(rows).map(row => {
+        const minVal = parseInt(row.querySelector(".rule-tier-min").value, 10) || 0;
+        const maxRaw = row.querySelector(".rule-tier-max").value.trim();
+        const maxVal = maxRaw ? parseInt(maxRaw, 10) : Infinity;
+        return {
+          tierMin: minVal,
+          tierMax: maxVal,
+          max: parseFloat(row.querySelector(".rule-max").value) || 1,
+          min: parseFloat(row.querySelector(".rule-min").value) || 1
+        };
+      });
+      saveToStorage("directCoeffTierRules", DIRECT_COEFF_TIER_RULES);
+      onCalculate();
+      showToast("档位规则已更新");
+    });
+  });
+}
+
+function addTierRule() {
+  DIRECT_COEFF_TIER_RULES.push({
+    tierMin: 0,
+    tierMax: 500,
+    max: 1.5,
+    min: 1.4
+  });
+  saveToStorage("directCoeffTierRules", DIRECT_COEFF_TIER_RULES);
+  renderDirectTierRules();
+  onCalculate();
+  showToast("已新增档位规则");
+}
+
+function resetTierRules() {
+  DIRECT_COEFF_TIER_RULES = DEFAULT_DIRECT_COEFF_TIER_RULES.map(r => ({ ...r }));
+  saveToStorage("directCoeffTierRules", DIRECT_COEFF_TIER_RULES);
+  renderDirectTierRules();
+  onCalculate();
+  showToast("已恢复默认档位规则");
+}
+
 // -------------------- 模式切换 --------------------
 function switchCalcMode(mode) {
   calcMode = mode;
@@ -1474,10 +1556,10 @@ function switchCalcMode(mode) {
  * 用途：换设备或被旧 localStorage 污染后，一键回到 DEFAULT 状态。
  */
 function resetToDefaults() {
-  const confirmMsg = "将清空以下本地修改并恢复出厂默认：\n\n• 报价表组（恢复为单个1号报价表）\n• 纸张配置（9 张1号报价表）\n• 工艺配置（含 烫金/UV/鸡眼/凹凸 等）\n• 吊绳配置\n• 邮费配置\n• 客户等级\n\n报价历史与本地快照不会被删除。\n\n确定继续？";
+  const confirmMsg = "将清空以下本地修改并恢复出厂默认：\n\n• 报价表组（恢复为单个1号报价表）\n• 纸张配置（9 张1号报价表）\n• 工艺配置（含 烫金/UV/鸡眼/凹凸 等）\n• 吊绳配置\n• 邮费配置\n• 客户等级\n• 直接系数等级与档位规则\n\n报价历史与本地快照不会被删除。\n\n确定继续？";
   if (!confirm(confirmMsg)) return;
 
-  const keysToReset = ["paperConfig", "craftConfig", "ropeConfig", "shippingConfig", "customerLevels", "directCoeffLevels", "priceLists", "currentPriceListId"];
+  const keysToReset = ["paperConfig", "craftConfig", "ropeConfig", "shippingConfig", "customerLevels", "directCoeffLevels", "directCoeffTierRules", "priceLists", "currentPriceListId"];
   keysToReset.forEach(k => {
     try { localStorage.removeItem("tagPricing_" + k); } catch (e) { /* 忽略 */ }
   });
@@ -1497,11 +1579,13 @@ function resetToDefaults() {
   SHIPPING_CONFIG = DEFAULT_SHIPPING_CONFIG.map(s => ({ ...s, basePrices: { ...s.basePrices } }));
   CUSTOMER_LEVELS = DEFAULT_CUSTOMER_LEVELS.map(l => ({ ...l }));
   DIRECT_COEFF_LEVELS = DEFAULT_DIRECT_COEFF_LEVELS.map(l => ({ ...l }));
+  DIRECT_COEFF_TIER_RULES = DEFAULT_DIRECT_COEFF_TIER_RULES.map(r => ({ ...r }));
   currentPaperIndex = 0;
 
   rebuildPaperUI();
   renderLevelSettings();
   renderDirectCoeffSettings();
+  renderDirectTierRules();
   renderRopeRadios();
   initOptions();
   // 重新填充下拉框默认值
@@ -1704,6 +1788,8 @@ function renderSnapshots() {
       renderPriceListSelector && renderPriceListSelector();
       rebuildPaperUI();
       renderLevelSettings();
+      renderDirectCoeffSettings();
+      renderDirectTierRules();
       loadProfileToUI();
       onCalculate();
       showToast("已恢复快照");
@@ -1801,12 +1887,14 @@ function setLocalBackupStatus(html, isError) {
 
 function exportLocalBackup() {
   const data = {
-    version: "5.6",
+    version: "6.0",
     kind: "local-backup",
     exportAt: new Date().toISOString(),
     priceLists: PRICE_LISTS,
     currentPriceListId: CURRENT_PRICE_LIST_ID,
     customerLevels: CUSTOMER_LEVELS,
+    directCoeffLevels: DIRECT_COEFF_LEVELS,
+    directCoeffTierRules: DIRECT_COEFF_TIER_RULES,
     appProfile: APP_PROFILE,
     paperConfig: PAPER_CONFIG,
     ropeConfig: ROPE_CONFIG,
@@ -1890,6 +1978,14 @@ function importLocalBackup(file) {
         CUSTOMER_LEVELS = data.customerLevels;
         saveToStorage("customerLevels", CUSTOMER_LEVELS);
       }
+      if (data.directCoeffLevels) {
+        DIRECT_COEFF_LEVELS = data.directCoeffLevels;
+        saveToStorage("directCoeffLevels", DIRECT_COEFF_LEVELS);
+      }
+      if (data.directCoeffTierRules) {
+        DIRECT_COEFF_TIER_RULES = data.directCoeffTierRules;
+        saveToStorage("directCoeffTierRules", DIRECT_COEFF_TIER_RULES);
+      }
       if (data.appProfile) {
         APP_PROFILE = data.appProfile;
         APP_PROFILE.decimalPlaces = parseDecimalPlaces(APP_PROFILE.decimalPlaces);
@@ -1924,6 +2020,8 @@ function importLocalBackup(file) {
       renderPriceListSelector && renderPriceListSelector();
       rebuildPaperUI();
       renderLevelSettings();
+      renderDirectCoeffSettings();
+      renderDirectTierRules();
       loadProfileToUI();
       renderSnapshots();
       renderHistory();
@@ -3050,6 +3148,8 @@ function bindEvents() {
   if (els.resetLevelBtn) els.resetLevelBtn.addEventListener("click", resetCustomerLevels);
   if (els.addDirectLevelBtn) els.addDirectLevelBtn.addEventListener("click", addDirectLevel);
   if (els.resetDirectLevelBtn) els.resetDirectLevelBtn.addEventListener("click", resetDirectLevels);
+  if (els.addTierRuleBtn) els.addTierRuleBtn.addEventListener("click", addTierRule);
+  if (els.resetTierRulesBtn) els.resetTierRulesBtn.addEventListener("click", resetTierRules);
   if (els.saveProfileBtn) els.saveProfileBtn.addEventListener("click", saveProfile);
   if (els.exportProfileBtn) els.exportProfileBtn.addEventListener("click", exportProfile);
 
@@ -3157,6 +3257,7 @@ function bindEvents() {
     ["loadProfileToUI", loadProfileToUI],
     ["renderLevelSettings", renderLevelSettings],
     ["renderDirectCoeffSettings", renderDirectCoeffSettings],
+    ["renderDirectTierRules", renderDirectTierRules],
     ["renderSnapshots", renderSnapshots],
     ["renderHistory", renderHistory],
     ["renderPriceListSelector", renderPriceListSelector]

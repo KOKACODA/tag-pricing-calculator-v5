@@ -6,8 +6,8 @@
   <meta name="googlebot" content="noindex, nofollow">
   <!-- P0 安全：CSP 策略 -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' cdn.sheetjs.com 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';">
-  <title>KOKALabel报价系统 v5.9</title>
-  <link rel="stylesheet" href="css/style.css?v=5.9">
+  <title>KOKALabel报价系统 v6.0</title>
+  <link rel="stylesheet" href="css/style.css?v=6.0">
 </head>
 <body>
   <!-- 顶部导航 -->
@@ -637,7 +637,19 @@
           <button class="btn danger sm" data-action="remove-direct-level" data-index="2">删除</button>
         </div>
       </div>
-        <div class="btn-group" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+
+      <!-- 档位系数规则编辑 -->
+      <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--border);">
+        <div class="setting-label" style="margin-bottom: 6px;">批量档位系数规则</div>
+        <div class="setting-desc" style="margin-bottom: 10px; font-size: 12px;">每个档位范围设置最高/最低系数，中间等级自动等差插值。未覆盖的档位使用上方等级设置的系数。最大张数留空或填 0 表示无上限。</div>
+        <div id="directTierRules"></div>
+        <div class="btn-group" style="margin-top: 8px;">
+          <button class="btn secondary sm" id="addTierRuleBtn">+ 新增规则</button>
+          <button class="btn secondary sm" id="resetTierRulesBtn">恢复默认规则</button>
+        </div>
+      </div>
+
+      <div class="btn-group" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
           <button class="btn secondary sm" id="addDirectLevelBtn">+ 新增等级</button>
           <button class="btn secondary sm" id="resetDirectLevelBtn">恢复默认</button>
         </div>
@@ -898,7 +910,7 @@
         <div class="setting-row">
           <div class="setting-info">
             <div class="setting-label">当前版本</div>
-            <div class="setting-desc">KOKALabel报价系统 v5.9</div>
+            <div class="setting-desc">KOKALabel报价系统 v6.0</div>
           </div>
           <div class="setting-control">
             <span class="placeholder-badge">正式版</span>
@@ -933,6 +945,6 @@
 
   <!-- P1.4: SheetJS defer 备用加载（不阻塞渲染），app.js 中 loadSheetJS() 为按需加载兜底 -->
   <script defer src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-  <script src="js/data.js?v=5.9"></script>
-  <script src="js/app.js?v=5.9"></script>
+  <script src="js/data.js?v=6.0"></script>
+  <script src="js/app.js?v=6.0"></script>
 </body></html>

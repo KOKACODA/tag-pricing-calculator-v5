@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v5.9 - 数据配置层
+// KOKALabel报价系统 v6.0 - 数据配置层
 // ============================================================
 "use strict";
 
@@ -1495,11 +1495,12 @@ const DEFAULT_DIRECT_COEFF_LEVELS = [
  * 中间等级按等差插值自动计算。
  * 未覆盖的档位（如 500 张）使用用户设置的默认 DIRECT_COEFF_LEVELS。
  */
-const DIRECT_COEFF_TIER_RULES = [
-  { tierMin: 1000,  tierMax: 4000,  max: 1.6,  min: 1.5  },
-  { tierMin: 5000,  tierMax: 10000, max: 1.5,  min: 1.45 },
-  { tierMin: 20000, tierMax: Infinity, max: 1.45, min: 1.4 }
+const DEFAULT_DIRECT_COEFF_TIER_RULES = [
+  { tierMin: 1000,  tierMax: 4000,      max: 1.6,  min: 1.5  },
+  { tierMin: 5000,  tierMax: 10000,     max: 1.5,  min: 1.45 },
+  { tierMin: 20000, tierMax: Infinity,  max: 1.45, min: 1.4  }
 ];
+let DIRECT_COEFF_TIER_RULES = loadFromStorage("directCoeffTierRules", DEFAULT_DIRECT_COEFF_TIER_RULES.map(r => ({ ...r })));
 
 /**
  * 持久化策略：纸张/工艺/吊绳/邮费/客户等级/报价表组配置均读写 localStorage。

@@ -1104,6 +1104,39 @@
       width: 80px;
     }
 
+    /* 档位规则编辑器 */
+    .tier-rule-editor {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+
+    .tier-rule-editor input[type="number"] {
+      width: 70px;
+      padding: 5px 6px;
+      font-size: 13px;
+    }
+
+    .tier-rule-editor .rule-sep {
+      color: var(--text-secondary);
+      font-size: 13px;
+    }
+
+    .tier-rule-editor .rule-unit {
+      color: var(--text-secondary);
+      font-size: 13px;
+      margin-right: 4px;
+    }
+
+    .tier-rule-editor .rule-coeff-label {
+      color: var(--brand);
+      font-size: 13px;
+      font-weight: 600;
+      margin-left: 6px;
+    }
+
     .btn-group {
       display: flex;
       gap: 10px;
