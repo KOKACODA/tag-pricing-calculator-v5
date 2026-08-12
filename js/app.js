@@ -1004,10 +1004,10 @@ function onCalculate() {
     }
   }
 
-  // 渲染三个客户等级报价卡片（直接系数模式在右上角显示系数）
+  // 渲染三个客户等级报价卡片（右上角显示系数徽章）
   els.priceCards.innerHTML = result.pricesByLevel.map((item, idx) => `
     <div class="price-card${idx === 0 ? " highlight" : ""}">
-      ${calcMode === "direct" ? `<span class="coeff-badge">×${item.coefficient}</span>` : ""}
+      <span class="coeff-badge">×${item.coefficient}</span>
       <div class="level-name">${escapeHtml(item.levelName)}</div>
       <div class="level-price">${result.costIncomplete
         ? '<span class="price-missing">部分缺价</span>'
@@ -1087,7 +1087,7 @@ function renderCustomCoeffCard() {
   const price = _lastResult.cost * coeff;
   els.customPriceCard.innerHTML = `
     <div class="price-card custom-coeff">
-      ${calcMode === "direct" ? `<span class="coeff-badge">×${coeff}</span>` : ""}
+      <span class="coeff-badge">×${coeff}</span>
       <div class="level-name">临时系数 ${coeff}</div>
       <div class="level-price">${_lastResult.costIncomplete
         ? '<span class="price-missing">部分缺价</span>'
