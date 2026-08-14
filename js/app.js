@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v6.1 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v6.2 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -94,27 +94,49 @@ function calcAreaCoefficient(area) {
 }
 
 /**
- * 根据批量档位获取直接系数等级列表。
- * 优先使用该纸张（Sheet）专属的 directCoeff 配置；未配置时回退到全局默认。
- * 档位在 tierRules 覆盖范围内时，按 max/min 等差插值计算各等级系数。
- * 未覆盖的档位（如 500 张）使用等级设置的默认系数。
- * 返回格式与等级列表一致，但 coefficient 已按档位调整。
+ * 判断纸张（Sheet）是否配置了直接系数（读取报价表表格字段）。
+ * v6.2 起直接系数只读取表格：directCoeff 为 { tiers, max, min } 数组格式，无配置为 null。
+ */
+function paperHasDirectCoeff(paper) {
+  const cfg = (paper && paper.directCoeff) || null;
+  if (!cfg) return false;
+  return Array.isArray(cfg.tiers) && cfg.tiers.length > 0 &&
+    Array.isArray(cfg.max) && cfg.max.length > 0 &&
+    Array.isArray(cfg.min) && cfg.min.length > 0;
+}
+
+/**
+ * 根据批量档位获取直接系数等级列表（读取报价表表格字段）。
+ * 表格提供「直接系数档位 / 最高倍数 / 最低倍数」三行数据：
+ *   - 找到所选批量档位对应的档位列（取小于等于所选档位的最大档位）
+ *   - 最高倍数 → 普通客户（最高等级），最低倍数 → 大客户（最低等级），中间等级等差插值
+ * 纸张无直接系数时返回 null（调用方按标准报价处理）。
  */
 function getDirectCoeffsForTier(tier, paper) {
-  const cfg = (paper && paper.directCoeff) || {};
-  const levels = (cfg.levels && cfg.levels.length) ? cfg.levels : DIRECT_COEFF_LEVELS;
-  const tierRules = (cfg.tierRules && cfg.tierRules.length) ? cfg.tierRules : DIRECT_COEFF_TIER_RULES;
-  const rule = tierRules.find(r => tier >= r.tierMin && tier <= r.tierMax);
-  if (!rule) return levels.map(l => ({ ...l }));
+  if (!paperHasDirectCoeff(paper)) return null;
+  const cfg = paper.directCoeff;
+  const tiers = cfg.tiers;
+  const maxArr = cfg.max;
+  const minArr = cfg.min;
 
-  const n = levels.length;
-  if (n <= 1) return [{ ...levels[0], coefficient: rule.max }];
+  // 找到匹配档位：取小于等于所选档位的最大档位；若所选档位小于最小档位，用最小档位
+  let idx = -1;
+  for (let i = 0; i < tiers.length; i++) {
+    if (tier >= tiers[i]) idx = i;
+  }
+  if (idx < 0) idx = 0;
+  const max = maxArr[idx];
+  const min = minArr[idx];
+  if (max == null || min == null) return null;
+
+  const n = DIRECT_COEFF_LEVELS.length;
+  if (n <= 1) return [{ ...DIRECT_COEFF_LEVELS[0], coefficient: max }];
 
   // 等差插值：max → min
-  const step = (rule.max - rule.min) / (n - 1);
-  return levels.map((l, i) => ({
+  const step = (max - min) / (n - 1);
+  return DIRECT_COEFF_LEVELS.map((l, i) => ({
     ...l,
-    coefficient: Math.round((rule.max - step * i) * 100) / 100
+    coefficient: Math.round((max - step * i) * 100) / 100
   }));
 }
 
@@ -255,8 +277,9 @@ function calculate(inputs) {
     const baseOriginalPrice = hasExactTier(spec.prices, tier)
       ? Number(spec.prices[tier])
       : null;
-    // 直接系数模式：使用原价（不打折），系数已包含利润
-    const baseUnitPrice = isDirect
+    // v6.2：直接系数模式下，有直接系数的纸张使用原价（不打折），无直接系数的纸张按标准报价（乘折扣）
+    const useDirectForSheet = isDirect && paperHasDirectCoeff(paper);
+    const baseUnitPrice = useDirectForSheet
       ? baseOriginalPrice
       : (hasExactTier(spec.prices, tier)
           ? Number(spec.prices[tier]) * paper.discount
@@ -352,8 +375,10 @@ function calculate(inputs) {
     costIncomplete = !costKnown;
   }
 
-  // 报价系数：直接系数模式按档位自动调整（使用第一张纸的 Sheet 专属配置），标准模式用 CUSTOMER_LEVELS
-  const coeffLevels = isDirect ? getDirectCoeffsForTier(tier, primaryPaper) : CUSTOMER_LEVELS;
+  // 报价系数：直接系数模式按档位从表格读取（无直接系数的纸张回退到客户等级），标准模式用 CUSTOMER_LEVELS
+  const coeffLevels = isDirect
+    ? (getDirectCoeffsForTier(tier, primaryPaper) || CUSTOMER_LEVELS)
+    : CUSTOMER_LEVELS;
   const pricesByLevel = coeffLevels.map(level => ({
     levelId: level.id,
     levelName: level.name,
@@ -418,6 +443,7 @@ const els = {
   priceTable: document.getElementById("priceTable"),
   craftTable: document.getElementById("craftTable"),
   paperDiscount: document.getElementById("paperDiscount"),
+  paperDirectCoeff: document.getElementById("paperDirectCoeff"),
   tableMeta: document.getElementById("tableMeta"),
   prevPaper: document.getElementById("prevPaper"),
   nextPaper: document.getElementById("nextPaper"),
@@ -474,16 +500,6 @@ const els = {
   clearHistoryBtn: document.getElementById("clearHistoryBtn"),
   // 模式切换
   modeBtns: document.querySelectorAll(".mode-btn"),
-  // 直接系数设置
-  directCoeffSettings: document.getElementById("directCoeffSettings"),
-  directCoeffPaperSelect: document.getElementById("directCoeffPaperSelect"),
-  clearPaperDirectCoeffBtn: document.getElementById("clearPaperDirectCoeffBtn"),
-  addDirectLevelBtn: document.getElementById("addDirectLevelBtn"),
-  resetDirectLevelBtn: document.getElementById("resetDirectLevelBtn"),
-  // 直接系数档位规则
-  directTierRules: document.getElementById("directTierRules"),
-  addTierRuleBtn: document.getElementById("addTierRuleBtn"),
-  resetTierRulesBtn: document.getElementById("resetTierRulesBtn"),
   // 报价结果中需要模式控制的行
   resRopePriceRow: null, // 稍后在 onCalculate 中动态获取
   resShippingPriceRow: null,
@@ -1226,6 +1242,19 @@ function renderPriceTable() {
   `).join("");
 
   els.paperDiscount.textContent = `${paper.name} | ${paper.discount === 1 ? "无折扣" : (paper.discount * 10).toFixed(1) + "折"}`;
+  // 直接系数显示
+  if (els.paperDirectCoeff) {
+    const dc = paper.directCoeff;
+    if (dc && Array.isArray(dc.tiers) && dc.tiers.length > 0 &&
+        Array.isArray(dc.max) && dc.max.length > 0 && Array.isArray(dc.min) && dc.min.length > 0) {
+      const dcInfo = dc.tiers.map((t, i) => `${t}张:×${dc.max[i]}/×${dc.min[i]}`).join("  ");
+      els.paperDirectCoeff.textContent = `直接系数档位：${dcInfo}`;
+      els.paperDirectCoeff.style.display = "inline";
+    } else {
+      els.paperDirectCoeff.textContent = "";
+      els.paperDirectCoeff.style.display = "none";
+    }
+  }
   els.tableMeta.textContent = `行数：${filtered.length} / ${paper.specs.length}`;
   els.paperPageInfo.textContent = `第 ${currentPaperIndex + 1} / ${currentPapers.length} 张`;
   els.prevPaper.disabled = currentPaperIndex === 0;
@@ -1407,150 +1436,6 @@ function resetCustomerLevels() {
   showToast("已恢复默认等级");
 }
 
-// -------------------- 个人主页：直接系数渲染 --------------------
-function renderDirectCoeffSettings() {
-  if (!els.directCoeffSettings) return;
-  els.directCoeffSettings.innerHTML = DIRECT_COEFF_LEVELS.map((level, index) => `
-    <div class="level-editor" data-level-id="${level.id}">
-      <input type="text" class="level-name" value="${escapeHtml(level.name)}" placeholder="等级名称" />
-      <input type="number" class="level-coefficient" value="${level.coefficient}" min="1" step="0.01" />
-      <span class="unit">倍</span>
-      <button class="btn danger sm" data-action="remove-direct-level" data-index="${index}">删除</button>
-    </div>
-  `).join("");
-
-  // 绑定删除按钮
-  els.directCoeffSettings.querySelectorAll("[data-action='remove-direct-level']").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const index = Number(btn.dataset.index);
-      if (DIRECT_COEFF_LEVELS.length <= 1) {
-        showToast("至少保留一个直接系数等级");
-        return;
-      }
-      const levelName = DIRECT_COEFF_LEVELS[index]?.name || "该等级";
-      if (!confirm(`确定要删除直接系数等级「${levelName}」吗？\n\n删除后不可撤销，如需恢复可点击「恢复默认」。`)) return;
-      DIRECT_COEFF_LEVELS.splice(index, 1);
-      saveToStorage("directCoeffLevels", DIRECT_COEFF_LEVELS);
-      renderDirectCoeffSettings();
-      onCalculate();
-      showToast("已删除直接系数等级");
-    });
-  });
-
-  // 实时保存输入变化
-  els.directCoeffSettings.querySelectorAll(".level-name, .level-coefficient").forEach(input => {
-    input.addEventListener("change", () => {
-      const rows = els.directCoeffSettings.querySelectorAll(".level-editor");
-      DIRECT_COEFF_LEVELS = Array.from(rows).map(row => ({
-        id: row.dataset.levelId || generateId(),
-        name: row.querySelector(".level-name").value.trim() || "未命名",
-        coefficient: parseFloat(row.querySelector(".level-coefficient").value) || 1
-      }));
-      saveToStorage("directCoeffLevels", DIRECT_COEFF_LEVELS);
-      onCalculate();
-      showToast("直接系数已更新");
-    });
-  });
-}
-
-function addDirectLevel() {
-  DIRECT_COEFF_LEVELS.push({
-    id: generateId(),
-    name: "新客户等级 " + (DIRECT_COEFF_LEVELS.length + 1),
-    coefficient: 1.3
-  });
-  saveToStorage("directCoeffLevels", DIRECT_COEFF_LEVELS);
-  renderDirectCoeffSettings();
-  onCalculate();
-  showToast("已新增直接系数等级");
-}
-
-function resetDirectLevels() {
-  DIRECT_COEFF_LEVELS = DEFAULT_DIRECT_COEFF_LEVELS.map(l => ({ ...l }));
-  saveToStorage("directCoeffLevels", DIRECT_COEFF_LEVELS);
-  renderDirectCoeffSettings();
-  onCalculate();
-  showToast("已恢复默认直接系数");
-}
-
-// -------------------- 个人主页：直接系数档位规则渲染 --------------------
-function renderDirectTierRules() {
-  if (!els.directTierRules) return;
-  els.directTierRules.innerHTML = DIRECT_COEFF_TIER_RULES.map((rule, index) => {
-    const maxDisplay = rule.tierMax === Infinity ? "" : rule.tierMax;
-    return `
-    <div class="tier-rule-editor" data-rule-index="${index}">
-      <input type="number" class="rule-tier-min" value="${rule.tierMin}" min="0" step="1" placeholder="最小张数" />
-      <span class="rule-sep">~</span>
-      <input type="number" class="rule-tier-max" value="${maxDisplay}" min="0" step="1" placeholder="无上限留空" />
-      <span class="rule-unit">张</span>
-      <span class="rule-coeff-label">系数</span>
-      <input type="number" class="rule-max" value="${rule.max}" min="1" step="0.01" placeholder="最高" />
-      <span class="rule-sep">~</span>
-      <input type="number" class="rule-min" value="${rule.min}" min="1" step="0.01" placeholder="最低" />
-      <button class="btn danger sm" data-action="remove-tier-rule" data-index="${index}">删除</button>
-    </div>
-  `;}).join("");
-
-  // 绑定删除按钮
-  els.directTierRules.querySelectorAll("[data-action='remove-tier-rule']").forEach(btn => {
-    btn.addEventListener("click", () => {
-      if (DIRECT_COEFF_TIER_RULES.length <= 1) {
-        showToast("至少保留一条档位规则");
-        return;
-      }
-      const index = Number(btn.dataset.index);
-      DIRECT_COEFF_TIER_RULES.splice(index, 1);
-      saveToStorage("directCoeffTierRules", DIRECT_COEFF_TIER_RULES);
-      renderDirectTierRules();
-      onCalculate();
-      showToast("已删除档位规则");
-    });
-  });
-
-  // 实时保存输入变化
-  els.directTierRules.querySelectorAll("input").forEach(input => {
-    input.addEventListener("change", () => {
-      const rows = els.directTierRules.querySelectorAll(".tier-rule-editor");
-      DIRECT_COEFF_TIER_RULES = Array.from(rows).map(row => {
-        const minVal = parseInt(row.querySelector(".rule-tier-min").value, 10) || 0;
-        const maxRaw = row.querySelector(".rule-tier-max").value.trim();
-        const maxVal = maxRaw ? parseInt(maxRaw, 10) : Infinity;
-        return {
-          tierMin: minVal,
-          tierMax: maxVal,
-          max: parseFloat(row.querySelector(".rule-max").value) || 1,
-          min: parseFloat(row.querySelector(".rule-min").value) || 1
-        };
-      });
-      saveToStorage("directCoeffTierRules", DIRECT_COEFF_TIER_RULES);
-      onCalculate();
-      showToast("档位规则已更新");
-    });
-  });
-}
-
-function addTierRule() {
-  DIRECT_COEFF_TIER_RULES.push({
-    tierMin: 0,
-    tierMax: 500,
-    max: 1.5,
-    min: 1.4
-  });
-  saveToStorage("directCoeffTierRules", DIRECT_COEFF_TIER_RULES);
-  renderDirectTierRules();
-  onCalculate();
-  showToast("已新增档位规则");
-}
-
-function resetTierRules() {
-  DIRECT_COEFF_TIER_RULES = DEFAULT_DIRECT_COEFF_TIER_RULES.map(r => ({ ...r }));
-  saveToStorage("directCoeffTierRules", DIRECT_COEFF_TIER_RULES);
-  renderDirectTierRules();
-  onCalculate();
-  showToast("已恢复默认档位规则");
-}
-
 // -------------------- 模式切换 --------------------
 function switchCalcMode(mode) {
   calcMode = mode;
@@ -1577,10 +1462,10 @@ function switchCalcMode(mode) {
  * 用途：换设备或被旧 localStorage 污染后，一键回到 DEFAULT 状态。
  */
 function resetToDefaults() {
-  const confirmMsg = "将清空以下本地修改并恢复出厂默认：\n\n• 报价表组（恢复为单个1号报价表）\n• 纸张配置（9 张1号报价表）\n• 工艺配置（含 烫金/UV/鸡眼/凹凸 等）\n• 吊绳配置\n• 邮费配置\n• 客户等级\n• 直接系数等级与档位规则\n\n报价历史与本地快照不会被删除。\n\n确定继续？";
+  const confirmMsg = "将清空以下本地修改并恢复出厂默认：\n\n• 报价表组（恢复为单个1号报价表）\n• 纸张配置（10 张1号报价表）\n• 工艺配置（含 烫金/UV/鸡眼/凹凸 等）\n• 吊绳配置\n• 邮费配置\n• 客户等级\n\n报价历史与本地快照不会被删除。\n\n确定继续？";
   if (!confirm(confirmMsg)) return;
 
-  const keysToReset = ["paperConfig", "craftConfig", "ropeConfig", "shippingConfig", "customerLevels", "directCoeffLevels", "directCoeffTierRules", "priceLists", "currentPriceListId"];
+  const keysToReset = ["paperConfig", "craftConfig", "ropeConfig", "shippingConfig", "customerLevels", "priceLists", "currentPriceListId"];
   keysToReset.forEach(k => {
     try { localStorage.removeItem("tagPricing_" + k); } catch (e) { /* 忽略 */ }
   });
@@ -1599,14 +1484,10 @@ function resetToDefaults() {
   ROPE_CONFIG = DEFAULT_ROPE_CONFIG.map(r => ({ ...r, prices: { ...r.prices } }));
   SHIPPING_CONFIG = DEFAULT_SHIPPING_CONFIG.map(s => ({ ...s, basePrices: { ...s.basePrices } }));
   CUSTOMER_LEVELS = DEFAULT_CUSTOMER_LEVELS.map(l => ({ ...l }));
-  DIRECT_COEFF_LEVELS = DEFAULT_DIRECT_COEFF_LEVELS.map(l => ({ ...l }));
-  DIRECT_COEFF_TIER_RULES = DEFAULT_DIRECT_COEFF_TIER_RULES.map(r => ({ ...r }));
   currentPaperIndex = 0;
 
   rebuildPaperUI();
   renderLevelSettings();
-  renderDirectCoeffSettings();
-  renderDirectTierRules();
   renderRopeRadios();
   initOptions();
   // 重新填充下拉框默认值
@@ -1623,11 +1504,11 @@ function resetToDefaults() {
  * 保留范围：报价历史、本地快照。
  */
 function resetAllLocalSettings() {
-  const confirmMsg = "⚠️ 确定要恢复全局默认设置吗？\n\n将清除以下本地配置：\n• 报价表组（恢复为单个1号报价表）\n• 纸张配置（9 张1号报价表）\n• 工艺配置（含 烫金/UV/鸡眼/凹凸 等）\n• 吊绳配置\n• 邮费配置\n• 客户等级与毛利系数\n• 公司信息与个人偏好\n\n报价历史与本地快照不受影响。\n\n此操作不可撤销，恢复后页面将自动刷新。";
+  const confirmMsg = "⚠️ 确定要恢复全局默认设置吗？\n\n将清除以下本地配置：\n• 报价表组（恢复为单个1号报价表）\n• 纸张配置（10 张1号报价表）\n• 工艺配置（含 烫金/UV/鸡眼/凹凸 等）\n• 吊绳配置\n• 邮费配置\n• 客户等级与毛利系数\n• 公司信息与个人偏好\n\n报价历史与本地快照不受影响。\n\n此操作不可撤销，恢复后页面将自动刷新。";
   if (!confirm(confirmMsg)) return;
 
   // 清除所有本地配置 key（保留 history 和 snapshots）
-  const keysToWipe = ["paperConfig", "craftConfig", "ropeConfig", "shippingConfig", "customerLevels", "directCoeffLevels", "appProfile", "priceLists", "currentPriceListId"];
+  const keysToWipe = ["paperConfig", "craftConfig", "ropeConfig", "shippingConfig", "customerLevels", "appProfile", "priceLists", "currentPriceListId"];
   keysToWipe.forEach(k => {
     try { localStorage.removeItem("tagPricing_" + k); } catch (e) { /* 忽略 */ }
   });
@@ -1687,7 +1568,6 @@ function saveProfile() {
   };
   saveToStorage("appProfile", APP_PROFILE);
   saveToStorage("customerLevels", CUSTOMER_LEVELS);
-  saveToStorage("directCoeffLevels", DIRECT_COEFF_LEVELS);
   showToast("设置已保存");
   onCalculate();
 }
@@ -1695,7 +1575,6 @@ function saveProfile() {
 function exportProfile() {
   const data = {
     customerLevels: CUSTOMER_LEVELS,
-    directCoeffLevels: DIRECT_COEFF_LEVELS,
     appProfile: APP_PROFILE,
     exportAt: new Date().toISOString()
   };
@@ -1809,8 +1688,6 @@ function renderSnapshots() {
       renderPriceListSelector && renderPriceListSelector();
       rebuildPaperUI();
       renderLevelSettings();
-      renderDirectCoeffSettings();
-      renderDirectTierRules();
       loadProfileToUI();
       onCalculate();
       showToast("已恢复快照");
@@ -1914,8 +1791,6 @@ function exportLocalBackup() {
     priceLists: PRICE_LISTS,
     currentPriceListId: CURRENT_PRICE_LIST_ID,
     customerLevels: CUSTOMER_LEVELS,
-    directCoeffLevels: DIRECT_COEFF_LEVELS,
-    directCoeffTierRules: DIRECT_COEFF_TIER_RULES,
     appProfile: APP_PROFILE,
     paperConfig: PAPER_CONFIG,
     ropeConfig: ROPE_CONFIG,
@@ -1999,14 +1874,6 @@ function importLocalBackup(file) {
         CUSTOMER_LEVELS = data.customerLevels;
         saveToStorage("customerLevels", CUSTOMER_LEVELS);
       }
-      if (data.directCoeffLevels) {
-        DIRECT_COEFF_LEVELS = data.directCoeffLevels;
-        saveToStorage("directCoeffLevels", DIRECT_COEFF_LEVELS);
-      }
-      if (data.directCoeffTierRules) {
-        DIRECT_COEFF_TIER_RULES = data.directCoeffTierRules;
-        saveToStorage("directCoeffTierRules", DIRECT_COEFF_TIER_RULES);
-      }
       if (data.appProfile) {
         APP_PROFILE = data.appProfile;
         APP_PROFILE.decimalPlaces = parseDecimalPlaces(APP_PROFILE.decimalPlaces);
@@ -2041,8 +1908,6 @@ function importLocalBackup(file) {
       renderPriceListSelector && renderPriceListSelector();
       rebuildPaperUI();
       renderLevelSettings();
-      renderDirectCoeffSettings();
-      renderDirectTierRules();
       loadProfileToUI();
       renderSnapshots();
       renderHistory();
@@ -2190,20 +2055,33 @@ function paperToSheetRows(paper) {
         ])
       ]
     : [];
-  // 直接系数档位规则字符串（与模板/导入格式一致）
-  const directCoeffStr = (paper.directCoeff && paper.directCoeff.tierRules && paper.directCoeff.tierRules.length)
-    ? paper.directCoeff.tierRules.map(r => {
-        const maxStr = r.tierMax === Infinity ? "" : r.tierMax;
-        return `${r.tierMin}-${maxStr}:${r.max}/${r.min}`;
-      }).join(";")
-    : "";
+  // 直接系数三行（与报价表表格格式一致：直接系数档位 / 最高倍数 / 最低倍数）
+  // 有直接系数 → 填写实际档位/最高/最低；无直接系数 → 用纸张价格档位作为占位档位，最高/最低留空
+  function directCoeffRows(paper, fallbackTiers) {
+    const dc = paper.directCoeff;
+    const hasDC = dc && Array.isArray(dc.tiers) && dc.tiers.length > 0 &&
+      Array.isArray(dc.max) && dc.max.length > 0 && Array.isArray(dc.min) && dc.min.length > 0;
+    if (hasDC) {
+      return [
+        ["直接系数档位", ...dc.tiers],
+        ["最高倍数", ...dc.max],
+        ["最低倍数", ...dc.min]
+      ];
+    }
+    const tiers = fallbackTiers && fallbackTiers.length ? fallbackTiers : [];
+    return [
+      ["直接系数档位", ...tiers],
+      ["最高倍数", ...tiers.map(() => "")],
+      ["最低倍数", ...tiers.map(() => "")]
+    ];
+  }
   return [
     ["所属小组", GROUP_META.name],
     ["总报价表", getCurrentPriceList().name],
     ["报价表全称", paper.name],
     ["简称", paper.shortName],
     ["折扣系数", paper.discount],
-    ["直接系数档位规则", directCoeffStr],
+    ...directCoeffRows(paper, tierKeys),
     ["备注", ""],
     [],
     headerRow,
@@ -2232,9 +2110,9 @@ function downloadPaperTemplate() {
   const wb = XLSX.utils.book_new();
 
   // === 模板 = 默认报价表（DEFAULT_PAPER_CONFIG + DEFAULT_CRAFT_CONFIG）动态生成 ===
-  // 每个 Sheet 均含「直接系数档位规则」行：
-  //   - 702铜版纸 已填档位规则（1000-4000:1.6/1.5;5000-10000:1.5/1.45;20000-:1.45/1.4）
-  //   - 其余 Sheet 为空占位，方便后续填写后重新导入
+  // 每个 Sheet 均含「直接系数档位 / 最高倍数 / 最低倍数」三行：
+  //   - 有直接系数的 Sheet（如 350/400/702铜版纸 等）已填实际档位/最高/最低
+  //   - 无直接系数的 Sheet（700布纹纸 / 40C棉麻布）提供占位档位行，最高/最低留空，方便填写后重新导入
   DEFAULT_PAPER_CONFIG.forEach((paper, idx) => {
     const rows = [];
     // 元信息区
@@ -2243,19 +2121,19 @@ function downloadPaperTemplate() {
     rows.push(["报价表全称", paper.name]);
     rows.push(["简称", paper.shortName]);
     rows.push(["折扣系数", paper.discount]);
-    // 直接系数档位规则行（702铜版纸已填，其余为空占位）
-    const directCoeffStr = (paper.directCoeff && paper.directCoeff.tierRules && paper.directCoeff.tierRules.length)
-      ? paper.directCoeff.tierRules.map(r => {
-          const maxStr = r.tierMax === Infinity ? "" : r.tierMax;
-          return `${r.tierMin}-${maxStr}:${r.max}/${r.min}`;
-        }).join(";")
-      : "";
-    rows.push(["直接系数档位规则", directCoeffStr]);
-    rows.push(["备注", "直接系数档位规则格式：最低张数-最高张数:最高系数/最低系数，多条用;分隔，如 1000-4000:1.6/1.5"]);
+    // 直接系数三行（有系数填实际值，无系数用价格档位占位）
+    const dc = paper.directCoeff;
+    const hasDC = dc && Array.isArray(dc.tiers) && dc.tiers.length > 0 &&
+      Array.isArray(dc.max) && dc.max.length > 0 && Array.isArray(dc.min) && dc.min.length > 0;
+    const specTierKeys = paper.specs.length ? Object.keys(paper.specs[0].prices).map(Number) : [];
+    const dcTiers = hasDC ? dc.tiers : specTierKeys;
+    rows.push(["直接系数档位", ...dcTiers]);
+    rows.push(["最高倍数", ...(hasDC ? dc.max : dcTiers.map(() => ""))]);
+    rows.push(["最低倍数", ...(hasDC ? dc.min : dcTiers.map(() => ""))]);
+    rows.push(["备注", "直接系数档位/最高倍数/最低倍数三行：档位为批量张数，最高倍数→普通客户，最低倍数→大客户，中间等级自动等差插值。无直接系数的纸张按标准报价（乘折扣系数）计算。"]);
     rows.push([]);
 
     // 规格区：取规格档位 + 工艺档位并集
-    const specTierKeys = paper.specs.length ? Object.keys(paper.specs[0].prices).map(Number) : [];
     const crafts = DEFAULT_CRAFT_CONFIG[paper.id] || [];
     const craftTierKeys = crafts.length ? Object.keys(crafts[0].prices).map(Number) : [];
     const tierSet = new Set([...specTierKeys, ...craftTierKeys]);
@@ -2322,7 +2200,7 @@ function parsePaperExcel(arrayBuffer) {
     }
 
     // 读取表头信息区（按标签匹配，兼容有无"所属小组"/"总报价表"行）
-    let name = "", shortName = "", discountRaw = "", directCoeffRaw = "";
+    let name = "", shortName = "", discountRaw = "";
     for (let i = 0; i < Math.min(rows.length, 8); i++) {
       const label = String(rows[i] && rows[i][0] || "").trim();
       const val = rows[i] && rows[i][1];
@@ -2335,31 +2213,39 @@ function parsePaperExcel(arrayBuffer) {
       if (label === "1号报价表全称" || label === "报价表全称") name = String(val || "").trim();
       else if (label === "简称") shortName = String(val || "").trim();
       else if (label === "折扣系数") discountRaw = val;
-      else if (label === "直接系数档位规则") directCoeffRaw = String(val || "").trim();
     }
     const discount = discountRaw === "" || discountRaw == null ? 1 : Number(discountRaw);
 
-    // 解析直接系数档位规则：格式 "1000-4000:1.6/1.5;5000-10000:1.5/1.45;20000-:1.45/1.4"
-    // 档位最高张数留空表示无上限；多条规则用 ; 或 ；分隔
+    // 解析直接系数三行（直接系数档位 / 最高倍数 / 最低倍数），与报价表表格格式一致
+    // 三行均填有值 → { tiers, max, min }；仅档位占位或缺失 → null（按标准报价计算）
     let directCoeff = null;
-    if (directCoeffRaw) {
-      const rules = [];
-      directCoeffRaw.split(/[;；]/).forEach(seg => {
-        seg = seg.trim();
-        if (!seg) return;
-        const m = seg.match(/^(\d+)\s*-\s*(\d*)\s*:\s*([\d.]+)\s*\/\s*([\d.]+)$/);
-        if (m) {
-          rules.push({
-            tierMin: Number(m[1]),
-            tierMax: m[2] ? Number(m[2]) : Infinity,
-            max: Number(m[3]),
-            min: Number(m[4])
-          });
-        } else {
-          errors.push(`「${sheetName}」直接系数档位规则格式无效：${seg}（应为 最低张数-最高张数:最高系数/最低系数）`);
+    {
+      const dcRows = { tiers: null, max: null, min: null };
+      for (let i = 0; i < rows.length; i++) {
+        const label = String(rows[i] && rows[i][0] || "").trim();
+        if (label === "直接系数档位") dcRows.tiers = rows[i];
+        else if (label === "最高倍数") dcRows.max = rows[i];
+        else if (label === "最低倍数") dcRows.min = rows[i];
+      }
+      const toNumArr = (row) => {
+        const arr = [];
+        if (!row) return arr;
+        for (let c = 1; c < row.length; c++) {
+          const v = row[c];
+          if (v === "" || v == null) continue;
+          const n = Number(v);
+          if (!isNaN(n)) arr.push(n);
         }
-      });
-      if (rules.length) directCoeff = { tierRules: rules };
+        return arr;
+      };
+      const tiers = toNumArr(dcRows.tiers).filter(n => n > 0 && Number.isInteger(n));
+      const maxs = toNumArr(dcRows.max);
+      const mins = toNumArr(dcRows.min);
+      // 三行都有值且档位数量一致 → 有效直接系数
+      if (tiers.length && maxs.length === tiers.length && mins.length === tiers.length) {
+        directCoeff = { tiers, max: maxs, min: mins };
+      }
+      // 仅档位占位（无最高/最低）或无任何行 → directCoeff 保持 null
     }
 
     if (!name) {
@@ -2513,11 +2399,11 @@ function parsePaperExcel(arrayBuffer) {
       name,
       shortName,
       discount: isNaN(discount) || discount <= 0 ? 1 : discount,
-      // 直接系数：Sheet 专属配置。优先使用 Excel 中填写的档位规则；
-      // 未填写时匹配默认简称则继承默认配置（如 702铜版纸 档位规则），否则提供占位模板
+      // 直接系数：Sheet 专属配置，只读取报价表表格三行（直接系数档位/最高倍数/最低倍数）。
+      // 表格未填有效直接系数时，匹配默认简称则继承默认配置，否则为 null（按标准报价计算）
       directCoeff: directCoeff || (defaultPaper && defaultPaper.directCoeff
         ? JSON.parse(JSON.stringify(defaultPaper.directCoeff))
-        : { tierRules: [] }),
+        : null),
       specs
     });
     if (crafts.length) {
@@ -2960,10 +2846,6 @@ function bindEvents() {
   // 个人主页事件
   if (els.addLevelBtn) els.addLevelBtn.addEventListener("click", addCustomerLevel);
   if (els.resetLevelBtn) els.resetLevelBtn.addEventListener("click", resetCustomerLevels);
-  if (els.addDirectLevelBtn) els.addDirectLevelBtn.addEventListener("click", addDirectLevel);
-  if (els.resetDirectLevelBtn) els.resetDirectLevelBtn.addEventListener("click", resetDirectLevels);
-  if (els.addTierRuleBtn) els.addTierRuleBtn.addEventListener("click", addTierRule);
-  if (els.resetTierRulesBtn) els.resetTierRulesBtn.addEventListener("click", resetTierRules);
   if (els.saveProfileBtn) els.saveProfileBtn.addEventListener("click", saveProfile);
   if (els.exportProfileBtn) els.exportProfileBtn.addEventListener("click", exportProfile);
 
@@ -3070,8 +2952,6 @@ function bindEvents() {
     ["clearResult", clearResult],
     ["loadProfileToUI", loadProfileToUI],
     ["renderLevelSettings", renderLevelSettings],
-    ["renderDirectCoeffSettings", renderDirectCoeffSettings],
-    ["renderDirectTierRules", renderDirectTierRules],
     ["renderSnapshots", renderSnapshots],
     ["renderHistory", renderHistory],
     ["renderPriceListSelector", renderPriceListSelector]

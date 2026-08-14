@@ -1,4 +1,4 @@
-/* KOKALabel报价系统 v6.0 - 样式表 */
+/* KOKALabel报价系统 v6.2 - 样式表 */
 
 /* ===================== 全局变量与重置 ===================== */
     :root {
@@ -904,6 +904,16 @@
       font-weight: 600;
     }
 
+    .paper-direct-coeff {
+      font-size: 12px;
+      color: var(--text-secondary);
+      background: var(--bg-subtle, rgba(0,0,0,0.04));
+      border: 1px dashed var(--border);
+      border-radius: 6px;
+      padding: 2px 8px;
+      white-space: nowrap;
+    }
+
     .table-wrap {
       overflow-x: auto;
       border: 1px solid var(--border);
@@ -1102,39 +1112,6 @@
 
     .level-editor input[type="number"] {
       width: 80px;
-    }
-
-    /* 档位规则编辑器 */
-    .tier-rule-editor {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-      margin-bottom: 8px;
-      flex-wrap: wrap;
-    }
-
-    .tier-rule-editor input[type="number"] {
-      width: 70px;
-      padding: 5px 6px;
-      font-size: 13px;
-    }
-
-    .tier-rule-editor .rule-sep {
-      color: var(--text-secondary);
-      font-size: 13px;
-    }
-
-    .tier-rule-editor .rule-unit {
-      color: var(--text-secondary);
-      font-size: 13px;
-      margin-right: 4px;
-    }
-
-    .tier-rule-editor .rule-coeff-label {
-      color: var(--brand);
-      font-size: 13px;
-      font-weight: 600;
-      margin-left: 6px;
     }
 
     .btn-group {

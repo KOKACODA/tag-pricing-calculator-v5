@@ -85,11 +85,40 @@
 
     test("GROUP_META: 架构元信息", () => {{
       assert(GROUP_META.id === "group1", "小组 ID 应为 group1");
-      assert(PRICE_LIST_META.groupId === GROUP_META.id, "报价表应属于当前小组");
+      assert(PRICE_LISTS.length >= 1, "至少应有 1 个报价表");
+      assert(PRICE_LISTS[0].groupId === GROUP_META.id, "报价表应属于当前小组");
     }});
 
-    test("PAPER_CONFIG: 默认 9 张纸", () => {{
-      assert(PAPER_CONFIG.length === 9, "默认应有 9 张纸");
+    test("PAPER_CONFIG: 默认 10 张纸", () => {{
+      assert(PAPER_CONFIG.length === 10, "默认应有 10 张纸");
+    }});
+
+    test("directCoeff: 350铜版纸三行格式", () => {{
+      const p = PAPER_CONFIG.find(x => x.id === "paper1");
+      assert(p && p.directCoeff, "350铜版纸应有直接系数");
+      assert(p.directCoeff.tiers[0] === 500, "档位应从 500 开始");
+      assert(p.directCoeff.max[0] === 1.3, "最高倍数应为 1.3");
+      assert(p.directCoeff.min[0] === 1.25, "最低倍数应为 1.25");
+    }});
+
+    test("directCoeff: 702铜版纸专属规则", () => {{
+      const p = PAPER_CONFIG.find(x => x.id === "paper3");
+      assert(p && p.directCoeff, "702铜版纸应有直接系数");
+      assert(p.directCoeff.max[0] === 1.6, "1000-4000张最高应为 1.6");
+      assert(p.directCoeff.min[0] === 1.5, "1000-4000张最低应为 1.5");
+      assert(p.directCoeff.max[4] === 1.5, "5000-10000张最高应为 1.5");
+      assert(p.directCoeff.min[4] === 1.45, "5000-10000张最低应为 1.45");
+      assert(p.directCoeff.max[6] === 1.45, "20000张以上最高应为 1.45");
+      assert(p.directCoeff.min[6] === 1.4, "20000张以上最低应为 1.4");
+    }});
+
+    test("paperHasDirectCoeff: 有/无系数判断", () => {{
+      const p1 = PAPER_CONFIG.find(x => x.id === "paper1");
+      const p7 = PAPER_CONFIG.find(x => x.id === "paper7");
+      const p9 = PAPER_CONFIG.find(x => x.id === "paper9");
+      assert(paperHasDirectCoeff(p1) === true, "350铜版纸应有直接系数");
+      assert(paperHasDirectCoeff(p7) === false, "700布纹纸应无直接系数");
+      assert(paperHasDirectCoeff(p9) === false, "40C棉麻布应无直接系数");
     }});
 
     // -------------------- 运行测试 --------------------
