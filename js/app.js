@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v6.3 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v6.4 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -278,13 +278,14 @@ function calculate(inputs) {
     const baseOriginalPrice = hasExactTier(spec.prices, tier)
       ? Number(spec.prices[tier])
       : null;
-    // v6.2：直接系数模式下，有直接系数的纸张使用原价（不打折），无直接系数的纸张按标准报价（乘折扣）
-    const useDirectForSheet = isDirect && paperHasDirectCoeff(paper);
-    const baseUnitPrice = useDirectForSheet
-      ? baseOriginalPrice
-      : (hasExactTier(spec.prices, tier)
-          ? Number(spec.prices[tier]) * paper.discount
-          : null);
+    // v6.4：所有模式下纸张都按原价计算，不再乘纸张 discount
+    // 折扣只通过客户等级系数（标准模式）或直接系数（直接系数模式）体现
+    // 有直接系数的纸张：原价 × 直接系数 = 最终报价
+    // 无直接系数的纸张（直接系数模式下回退）：原价 × 客户等级系数 = 最终报价
+    // 标准模式：原价 × 客户等级系数 = 最终报价
+    const baseUnitPrice = hasExactTier(spec.prices, tier)
+      ? Number(spec.prices[tier])
+      : null;
     // 纸张最终价（乘面积系数后）
     const paperOriginalPrice = baseOriginalPrice != null ? baseOriginalPrice * areaCoeff : null;
     const paperUnitPrice = baseUnitPrice != null ? baseUnitPrice * areaCoeff : null;
@@ -1250,11 +1251,10 @@ function renderPriceTable() {
   `).join("");
 
   els.paperDiscount.textContent = `${paper.name} | ${paper.discount === 1 ? "无折扣" : (paper.discount * 10).toFixed(1) + "折"}`;
-  // 直接系数显示
+  // 直接系数显示（统一用 paperHasDirectCoeff 判断，确保三行完整且数量一致）
   if (els.paperDirectCoeff) {
-    const dc = paper.directCoeff;
-    if (dc && Array.isArray(dc.tiers) && dc.tiers.length > 0 &&
-        Array.isArray(dc.max) && dc.max.length > 0 && Array.isArray(dc.min) && dc.min.length > 0) {
+    if (paperHasDirectCoeff(paper)) {
+      const dc = paper.directCoeff;
       const dcInfo = dc.tiers.map((t, i) => `${t}张:×${dc.max[i]}/×${dc.min[i]}`).join("  ");
       els.paperDirectCoeff.textContent = `直接系数档位：${dcInfo}`;
       els.paperDirectCoeff.style.display = "inline";
