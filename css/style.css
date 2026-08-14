@@ -523,6 +523,32 @@
       line-height: 1.6;
     }
 
+    /* 纸张设置卡片：无直接系数提示（高亮，内联显示不弹窗） */
+    .sheet-direct-warning {
+      margin-top: 8px;
+      padding: 8px 10px;
+      background: #fff7ed;
+      border: 1px solid #fdba74;
+      border-left: 3px solid #f97316;
+      border-radius: 8px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #9a3412;
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      animation: fadeIn 0.3s ease;
+    }
+    .sheet-direct-warning-icon {
+      flex-shrink: 0;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .sheet-direct-warning strong {
+      color: #c2410c;
+      font-weight: 700;
+    }
+
     /* 面积系数提示行 */
     .area-coeff-row {
       padding: clamp(0.625rem, 3vw, 0.75rem) clamp(0.75rem, 3vw, 0.875rem);

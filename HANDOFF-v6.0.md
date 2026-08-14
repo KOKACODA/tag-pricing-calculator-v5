@@ -1,8 +1,8 @@
-# KOKALabel报价系统 v6.2 — 项目转手文档
+# KOKALabel报价系统 v6.3 — 项目转手文档
 
 > 本文档供新接手的开发者或 AI Agent 快速了解项目全貌。
 > 最后更新：2026-08-14
-> 版本：v6.2
+> 版本：v6.3
 
 ---
 
@@ -35,7 +35,8 @@ tag-pricing-calculator-v5/
 ├── HANDOFF-v6.0.md     # 本文档
 ├── v6.0-CHANGELOG.md   # v6.0 总结文档
 ├── v6.1-CHANGELOG.md   # v6.1 总结文档
-└── v6.2-CHANGELOG.md   # v6.2 总结文档
+├── v6.2-CHANGELOG.md   # v6.2 总结文档
+└── v6.3-CHANGELOG.md   # v6.3 总结文档
 ```
 
 ---

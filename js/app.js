@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v6.2 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v6.3 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -100,9 +100,10 @@ function calcAreaCoefficient(area) {
 function paperHasDirectCoeff(paper) {
   const cfg = (paper && paper.directCoeff) || null;
   if (!cfg) return false;
+  // 三行均非空且长度一致才算有效；档位与最高/最低数量不一致视为无效（提示切换标准报价）
   return Array.isArray(cfg.tiers) && cfg.tiers.length > 0 &&
-    Array.isArray(cfg.max) && cfg.max.length > 0 &&
-    Array.isArray(cfg.min) && cfg.min.length > 0;
+    Array.isArray(cfg.max) && cfg.max.length === cfg.tiers.length &&
+    Array.isArray(cfg.min) && cfg.min.length === cfg.tiers.length;
 }
 
 /**
@@ -629,6 +630,8 @@ function renderSheets() {
 
     const triggerText = currentPaper ? (currentPaper.shortName || currentPaper.name) : "无可用纸张";
     const triggerDesc = currentPaper ? currentPaper.name : "请导入报价表";
+    // v6.2：无直接系数的纸张（directCoeff 缺失或最高/最低倍数为空）提示切换标准报价
+    const noDirectCoeff = !paperHasDirectCoeff(currentPaper);
 
     card.innerHTML = `
       <div class="sheet-title">纸张 ${index + 1}</div>
@@ -646,6 +649,11 @@ function renderSheets() {
             ${paperOptions}
           </div>
         </div>
+        ${noDirectCoeff ? `
+        <div class="sheet-direct-warning">
+          <span class="sheet-direct-warning-icon">⚠</span>
+          <span>该纸张无直接系数（最高/最低倍数为空），请切换为<strong>标准报价</strong>计算</span>
+        </div>` : ""}
       </div>
       <div class="form-group" style="margin-bottom: 0;">
         <label>吊牌展开尺寸 <span class="hint">自动加 3mm 出血</span></label>
