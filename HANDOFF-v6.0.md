@@ -1,8 +1,8 @@
-# KOKALabel报价系统 v6.0 — 项目转手文档
+# KOKALabel报价系统 v6.1 — 项目转手文档
 
 > 本文档供新接手的开发者或 AI Agent 快速了解项目全貌。
-> 最后更新：2026-08-13
-> 版本：v6.0
+> 最后更新：2026-08-14
+> 版本：v6.1
 
 ---
 
@@ -33,7 +33,8 @@ tag-pricing-calculator-v5/
 ├── test.html           # 单元测试骨架
 ├── CHANGELOG.md        # 版本历史
 ├── HANDOFF-v6.0.md     # 本文档
-└── v6.0-CHANGELOG.md   # v6.0 总结文档
+├── v6.0-CHANGELOG.md   # v6.0 总结文档
+└── v6.1-CHANGELOG.md   # v6.1 总结文档
 ```
 
 ---
@@ -54,27 +55,33 @@ tag-pricing-calculator-v5/
 
 | 模式 | 计算方式 | 系数来源 |
 |---|---|---|
-| 标准报价（默认） | 成本 = 纸张 + 工艺 + 吊绳 + 邮费 | CUSTOMER_LEVELS（毛利系数） |
-| 直接系数计算 | 成本 = 纸张 + 工艺（不计算吊绳/邮费） | DIRECT_COEFF_LEVELS（直接系数，按档位自动调整） |
+| 直接系数计算（默认） | 成本 = 纸张 + 工艺（不计算吊绳/邮费，不打折） | 每 Sheet 专属 `directCoeff`，未配置回退 DIRECT_COEFF_LEVELS（按档位自动调整） |
+| 标准报价 | 成本 = 纸张 + 工艺 + 吊绳 + 邮费 | CUSTOMER_LEVELS（毛利系数） |
 
-### 直接系数档位规则（v6.0 新增）
+### 直接系数档位规则（v6.1 起为 Sheet 专属）
 
-直接系数模式下，系数根据批量档位自动调整：
+直接系数模式下，系数根据批量档位自动调整，且**每个 Sheet 可单独配置**：
 
 ```javascript
-// data.js 中的配置
-const DEFAULT_DIRECT_COEFF_TIER_RULES = [
-  { tierMin: 1000,  tierMax: 4000,      max: 1.6,  min: 1.5  },
-  { tierMin: 5000,  tierMax: 10000,     max: 1.5,  min: 1.45 },
-  { tierMin: 20000, tierMax: Infinity,  max: 1.45, min: 1.4  }
-];
+// data.js 中每张纸的 directCoeff 字段
+{
+  "directCoeff": {
+    "tierRules": [
+      { tierMin: 1000,  tierMax: 4000,      max: 1.6,  min: 1.5  },
+      { tierMin: 5000,  tierMax: 10000,     max: 1.5,  min: 1.45 },
+      { tierMin: 20000, tierMax: Infinity,  max: 1.45, min: 1.4  }
+    ]
+  }
+}
 ```
 
 - `max` = 最高系数（对应第一个等级，如普通客户）
 - `min` = 最低系数（对应最后一个等级，如大客户）
 - 中间等级按等差插值自动计算
 - 未被规则覆盖的档位（如 500 张）使用 `DIRECT_COEFF_LEVELS` 原值
-- 用户可在个人主页自由编辑这些规则（v6.0 新增）
+- **702铜版纸** 已配置专属档位规则；其余 Sheet 为占位模板（空 `tierRules`），未配置时回退到全局 `DIRECT_COEFF_TIER_RULES`
+- 全局档位规则仍可在个人主页自由编辑（影响未配置专属规则的 Sheet）
+- Excel 模板/导出/导入均支持「直接系数档位规则」行（格式 `最低张数-最高张数:最高系数/最低系数`，多条用 `;` 分隔）
 
 ---
 

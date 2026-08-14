@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v6.0 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v6.1 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -95,13 +95,16 @@ function calcAreaCoefficient(area) {
 
 /**
  * 根据批量档位获取直接系数等级列表。
- * 档位在 DIRECT_COEFF_TIER_RULES 覆盖范围内时，按 max/min 等差插值计算各等级系数。
- * 未覆盖的档位（如 500 张）使用用户设置的 DIRECT_COEFF_LEVELS 原值。
- * 返回格式与 DIRECT_COEFF_LEVELS 一致，但 coefficient 已按档位调整。
+ * 优先使用该纸张（Sheet）专属的 directCoeff 配置；未配置时回退到全局默认。
+ * 档位在 tierRules 覆盖范围内时，按 max/min 等差插值计算各等级系数。
+ * 未覆盖的档位（如 500 张）使用等级设置的默认系数。
+ * 返回格式与等级列表一致，但 coefficient 已按档位调整。
  */
-function getDirectCoeffsForTier(tier) {
-  const levels = DIRECT_COEFF_LEVELS;
-  const rule = DIRECT_COEFF_TIER_RULES.find(r => tier >= r.tierMin && tier <= r.tierMax);
+function getDirectCoeffsForTier(tier, paper) {
+  const cfg = (paper && paper.directCoeff) || {};
+  const levels = (cfg.levels && cfg.levels.length) ? cfg.levels : DIRECT_COEFF_LEVELS;
+  const tierRules = (cfg.tierRules && cfg.tierRules.length) ? cfg.tierRules : DIRECT_COEFF_TIER_RULES;
+  const rule = tierRules.find(r => tier >= r.tierMin && tier <= r.tierMax);
   if (!rule) return levels.map(l => ({ ...l }));
 
   const n = levels.length;
@@ -218,6 +221,10 @@ function calculate(inputs) {
   let hasMissingTier = false;
   // 是否有任一纸张面积超过 10000 触发面积系数
   let hasAreaCoefficient = false;
+  // 直接系数模式：以第一张纸的 Sheet 专属系数配置为准
+  const primaryPaper = sheets.length
+    ? getPapersByPriceList(CURRENT_PRICE_LIST_ID).find(p => p.id === sheets[0].paperId)
+    : null;
 
   for (const sheet of sheets) {
     const { width, length, sizeType, paperId, craftIds } = sheet;
@@ -248,9 +255,12 @@ function calculate(inputs) {
     const baseOriginalPrice = hasExactTier(spec.prices, tier)
       ? Number(spec.prices[tier])
       : null;
-    const baseUnitPrice = hasExactTier(spec.prices, tier)
-      ? Number(spec.prices[tier]) * paper.discount
-      : null;
+    // 直接系数模式：使用原价（不打折），系数已包含利润
+    const baseUnitPrice = isDirect
+      ? baseOriginalPrice
+      : (hasExactTier(spec.prices, tier)
+          ? Number(spec.prices[tier]) * paper.discount
+          : null);
     // 纸张最终价（乘面积系数后）
     const paperOriginalPrice = baseOriginalPrice != null ? baseOriginalPrice * areaCoeff : null;
     const paperUnitPrice = baseUnitPrice != null ? baseUnitPrice * areaCoeff : null;
@@ -342,8 +352,8 @@ function calculate(inputs) {
     costIncomplete = !costKnown;
   }
 
-  // 报价系数：直接系数模式按档位自动调整，标准模式用 CUSTOMER_LEVELS
-  const coeffLevels = isDirect ? getDirectCoeffsForTier(tier) : CUSTOMER_LEVELS;
+  // 报价系数：直接系数模式按档位自动调整（使用第一张纸的 Sheet 专属配置），标准模式用 CUSTOMER_LEVELS
+  const coeffLevels = isDirect ? getDirectCoeffsForTier(tier, primaryPaper) : CUSTOMER_LEVELS;
   const pricesByLevel = coeffLevels.map(level => ({
     levelId: level.id,
     levelName: level.name,
@@ -466,6 +476,8 @@ const els = {
   modeBtns: document.querySelectorAll(".mode-btn"),
   // 直接系数设置
   directCoeffSettings: document.getElementById("directCoeffSettings"),
+  directCoeffPaperSelect: document.getElementById("directCoeffPaperSelect"),
+  clearPaperDirectCoeffBtn: document.getElementById("clearPaperDirectCoeffBtn"),
   addDirectLevelBtn: document.getElementById("addDirectLevelBtn"),
   resetDirectLevelBtn: document.getElementById("resetDirectLevelBtn"),
   // 直接系数档位规则
@@ -482,7 +494,8 @@ const els = {
 let currentPaperIndex = 2;
 let toastTimer = null;
 let sheetsState = [];
-let calcMode = "standard"; // "standard" | "direct"
+// 计算模式：默认直接系数计算（v6.1 起），持久化到 localStorage
+let calcMode = loadFromStorage("currentCalcMode", "direct"); // "standard" | "direct"
 
 // -------------------- 初始化下拉选项 --------------------
 // 根据 APP_PROFILE.defaultRope 生成吊绳单选项 HTML（顶层作用域，供 initOptions 和 rebuildRopeUI 共用）
@@ -964,12 +977,16 @@ function onCalculate() {
   // 吊绳/邮费行：直接系数模式隐藏
   const ropeRow = els.resRopePrice ? els.resRopePrice.closest(".result-row") : null;
   const shippingRow = els.resShippingPrice ? els.resShippingPrice.closest(".result-row") : null;
+  // 纸张折后价合计行：直接系数模式不使用折扣，隐藏该行
+  const paperDiscountRow = els.resPaperPrice ? els.resPaperPrice.closest(".result-row") : null;
   if (calcMode === "direct") {
     if (ropeRow) ropeRow.style.display = "none";
     if (shippingRow) shippingRow.style.display = "none";
+    if (paperDiscountRow) paperDiscountRow.style.display = "none";
   } else {
     if (ropeRow) ropeRow.style.display = "";
     if (shippingRow) shippingRow.style.display = "";
+    if (paperDiscountRow) paperDiscountRow.style.display = "";
     els.resRopePrice.innerHTML = result.ropePrice != null ? "¥ " + formatMoney(result.ropePrice) : '<span class="price-missing">无该批量定价</span>';
     els.resShippingPrice.innerHTML = result.shippingPrice != null ? "¥ " + formatMoney(result.shippingPrice) : '<span class="price-missing">无该批量定价</span>';
   }
@@ -1142,12 +1159,15 @@ function clearResult() {
   // 吊绳/邮费行在直接系数模式下保持隐藏
   const ropeRow = els.resRopePrice ? els.resRopePrice.closest(".result-row") : null;
   const shippingRow = els.resShippingPrice ? els.resShippingPrice.closest(".result-row") : null;
+  const paperDiscountRow = els.resPaperPrice ? els.resPaperPrice.closest(".result-row") : null;
   if (calcMode === "direct") {
     if (ropeRow) ropeRow.style.display = "none";
     if (shippingRow) shippingRow.style.display = "none";
+    if (paperDiscountRow) paperDiscountRow.style.display = "none";
   } else {
     if (ropeRow) ropeRow.style.display = "";
     if (shippingRow) shippingRow.style.display = "";
+    if (paperDiscountRow) paperDiscountRow.style.display = "";
     els.resRopePrice.textContent = "-";
     els.resShippingPrice.textContent = "-";
   }
@@ -1534,6 +1554,7 @@ function resetTierRules() {
 // -------------------- 模式切换 --------------------
 function switchCalcMode(mode) {
   calcMode = mode;
+  saveToStorage("currentCalcMode", mode);
   els.modeBtns.forEach(btn => {
     btn.classList.toggle("active", btn.dataset.mode === mode);
   });
@@ -2169,12 +2190,20 @@ function paperToSheetRows(paper) {
         ])
       ]
     : [];
+  // 直接系数档位规则字符串（与模板/导入格式一致）
+  const directCoeffStr = (paper.directCoeff && paper.directCoeff.tierRules && paper.directCoeff.tierRules.length)
+    ? paper.directCoeff.tierRules.map(r => {
+        const maxStr = r.tierMax === Infinity ? "" : r.tierMax;
+        return `${r.tierMin}-${maxStr}:${r.max}/${r.min}`;
+      }).join(";")
+    : "";
   return [
     ["所属小组", GROUP_META.name],
     ["总报价表", getCurrentPriceList().name],
     ["报价表全称", paper.name],
     ["简称", paper.shortName],
     ["折扣系数", paper.discount],
+    ["直接系数档位规则", directCoeffStr],
     ["备注", ""],
     [],
     headerRow,
@@ -2202,313 +2231,69 @@ function downloadPaperTemplate() {
   if (typeof XLSX === "undefined") { loadSheetJS().then(() => downloadPaperTemplate()).catch(() => showToast("Excel 库加载失败，请检查网络")); return; }
   const wb = XLSX.utils.book_new();
 
-  // === 模板 = 源 Excel 的 9 张表 1:1 还原 ===
-  // 来源：用户提供的「KOKALabel1号报价表.xlsx」真实表头与工艺名（与导入端 100% 一致）。
-  // 9 张表顺序：350铜版纸 / 400铜版纸 / 702铜版纸 / 606米白卡 / 500白卡纸 / 海成专用 / 700布纹纸 / 600牛皮纸 / 40C棉麻布
-  const TEMPLATE_ROWS = [
-    // 1) 350铜版纸
-    {
-      meta: [
-        ["所属小组", "1号小组"],
-        ["总报价表", "1号报价表"],
-        ["1号报价表全称", "1号报价表-1：350克 A级铜版纸 双面过哑胶（厚度0.38mm）"],
-        ["简称", "350铜版纸"],
-        ["折扣系数", 1],
-        ["备注", "本表暂无附加工艺"]
-      ],
-      codeHeader: ["代码", "最大含出血面积", "500", "1000", "2000", "2500", "5000", "10000", "20000", "50000"],
-      codeRows: [
-        ["002", 1999, 20, 25, 45, 50, 95, 190, 350, 800],
-        ["003", 3164, 25, 30, 55, 60, 105, 200, 400, 1000],
-        ["004", 3999, 30, 35, 65, 70, 120, 240, 480, 1150],
-        ["005", 4944, 35, 40, 75, 85, 150, 270, 530, 1300],
-        ["055", 5684, 40, 45, 85, 90, 160, 300, 580, 1400],
-        ["006", 6264, 50, 55, 95, 100, 170, 340, 660, 1600],
-        ["007", 7999, 60, 65, 120, 130, 220, 420, 820, 1900],
-        ["008", 7999, 60, 65, 120, 130, 220, 420, 820, 1900],
-        ["009", 9999, 80, 90, 160, 170, 290, 560, 1100, 2500],
-        ["100", 15999, 110, 130, 230, 250, 420, 820, 1600, 3700]
-      ],
-      craftHeader: null,
-      craftRows: []
-    },
-    // 2) 400铜版纸
-    {
-      meta: [
-        ["所属小组", "1号小组"],
-        ["总报价表", "1号报价表"],
-        ["1号报价表全称", "1号报价表-2：400克 A级铜版纸 双面过哑胶（厚度0.45mm）"],
-        ["简称", "400铜版纸"],
-        ["折扣系数", 0.91],
-        ["备注", "工艺名带（单面）/（双面）后缀可区分；空值留空"]
-      ],
-      codeHeader: ["代码", "最大含出血面积", "1000", "2000", "3000", "4000", "5000", "10000", "20000", "30000", "50000", "100000"],
-      codeRows: [
-        ["002", 1999, 25, 45, 75, 85, 120, 210, 400, "", 900, ""],
-        ["003", 3164, 35, 55, 90, 105, 140, 240, 460, "", 1100, ""],
-        ["004", 3999, 40, 70, 105, 130, 170, 285, 550, "", 1300, ""],
-        ["005", 4944, 50, 85, 130, 160, 210, 360, 700, "", 1700, ""],
-        ["055", 5684, 60, 95, 145, 180, 240, 410, 800, "", 1900, ""],
-        ["006", 6264, 65, 105, 160, 200, 260, 440, 880, "", 2050, ""],
-        ["007", 7999, 80, 130, 195, 245, 320, 540, 1080, "", 2500, ""],
-        ["008", 7999, 80, 130, 195, 245, 320, 540, 1080, "", 2500, ""],
-        ["009", 9999, 100, 165, 245, 305, 400, 680, 1380, "", 3150, ""],
-        ["100", 15999, 145, 240, 360, 445, 580, 980, 2000, "", 4550, ""]
-      ],
-      craftHeader: ["工艺名称", "1000", "2000", "3000", "4000", "5000", "10000", "20000", "30000", "50000", "100000"],
-      craftRows: [
-        ["烫金（单面）", 90, 110, 130, 140, 160, 200, 280, 350, 450, 800],
-        ["烫金（双面）", 110, 130, 150, 160, 200, 240, 380, 500, 800, 1400],
-        ["UV", 100, 100, 130, 140, 160, 180, 240, 300, 400, 600],
-        ["鸡眼", 40, 60, 90, 120, 150, 300, 600, 800, 1300, 2500],
-        ["凹凸", 110, 120, 130, 140, 150, 200, 280, 320, 400, 500]
-      ]
-    },
-    // 3) 702铜版纸
-    {
-      meta: [
-        ["所属小组", "1号小组"],
-        ["总报价表", "1号报价表"],
-        ["1号报价表全称", "1号报价表-3：702克 A级铜版纸 双面过哑胶（厚度0.85mm）"],
-        ["简称", "702铜版纸"],
-        ["折扣系数", 1],
-        ["备注", "附加工艺中烫金分单/双面，请分别填写"]
-      ],
-      codeHeader: ["代码", "最大含出血面积", "1000", "2000", "3000", "4000", "5000", "10000", "20000", "50000"],
-      codeRows: [
-        ["002", 1999, 35, 50, 70, 80, 90, 170, "", ""],
-        ["003", 3164, 45, 60, 85, 100, 110, 210, "", ""],
-        ["004", 3999, 55, 75, 100, 120, 135, 250, "", ""],
-        ["005", 4944, 70, 95, 130, 155, 170, 320, "", ""],
-        ["055", 5684, 80, 105, 145, 175, 195, 360, "", ""],
-        ["006", 6264, 90, 120, 165, 195, 220, 400, "", ""],
-        ["007", 7999, 110, 150, 200, 240, 270, 490, "", ""],
-        ["008", 7999, 110, 150, 200, 240, 270, 490, "", ""],
-        ["009", 9999, 145, 195, 265, 315, 355, 640, "", ""],
-        ["100", 15999, 210, 280, 380, 455, 510, 920, "", ""]
-      ],
-      craftHeader: ["工艺名称", "1000", "2000", "3000", "4000", "5000", "10000", "20000", "50000"],
-      craftRows: [
-        ["无色压凹（单面）", 50, 60, 70, 80, 90, 170, "", ""],
-        ["套字压凹（单面）", 80, 90, 100, 110, 120, 230, "", ""],
-        ["烫金 小面积（单面）", 50, 60, 70, 80, 90, 170, "", ""],
-        ["烫金 小面积（双面）", 70, 80, 90, 100, 120, 230, "", ""],
-        ["击凸（单面）", 80, 90, 100, 110, 120, 230, "", ""]
-      ]
-    },
-    // 4) 606米白卡
-    {
-      meta: [
-        ["所属小组", "1号小组"],
-        ["总报价表", "1号报价表"],
-        ["1号报价表全称", "1号报价表-4：米白卡 606克（厚度0.8mm）"],
-        ["简称", "606米白卡"],
-        ["折扣系数", 1],
-        ["备注", "工艺分（单面）/（双面），与代码区批量档对齐"]
-      ],
-      codeHeader: ["代码", "最大含出血面积", "500", "1000", "2000", "2500", "5000", "7500", "10000", "20000", "30000", "50000"],
-      codeRows: [
-        ["002", 1999, 20, 30, 40, "", 70, "", 130, "", "", ""],
-        ["003", 3164, 25, 35, 50, "", 80, "", 150, "", "", ""],
-        ["004", 3999, 30, 40, 60, "", 90, "", 170, "", "", ""],
-        ["005", 4944, 35, 50, 70, "", 110, "", 200, "", "", ""],
-        ["055", 5684, 40, 55, 80, "", 125, "", 230, "", "", ""],
-        ["006", 6264, 45, 60, 85, "", 135, "", 250, "", "", ""],
-        ["007", 7999, 55, 75, 105, "", 165, "", 300, "", "", ""],
-        ["008", 7999, 55, 75, 105, "", 165, "", 300, "", "", ""],
-        ["009", 9999, 70, 95, 135, "", 210, "", 380, "", "", ""],
-        ["100", 15999, 100, 140, 195, "", 305, "", 555, "", "", ""]
-      ],
-      craftHeader: ["工艺名称", "500", "1000", "2000", "2500", "5000", "7500", "10000", "20000", "30000", "50000"],
-      craftRows: [
-        ["无色压凹（单面）", "", 30, 40, "", 70, "", 130, "", "", ""],
-        ["套字压凹（单面）", "", 80, 90, "", 120, "", 230, "", "", ""],
-        ["烫金 小面积（单面）", "", 50, 60, "", 90, "", 170, "", "", ""],
-        ["烫金 小面积（双面）", "", 70, 80, "", 120, "", 230, "", "", ""],
-        ["击凸（单面）", "", 80, 90, "", 120, "", 230, "", "", ""]
-      ]
-    },
-    // 5) 500白卡纸
-    {
-      meta: [
-        ["所属小组", "1号小组"],
-        ["总报价表", "1号报价表"],
-        ["1号报价表全称", "1号报价表-5：500克 白卡纸（厚度0.55mm）正面过哑胶"],
-        ["简称", "500白卡纸"],
-        ["折扣系数", 0.75],
-        ["备注", "工艺分（单面）/（双面），按实际勾选填写"]
-      ],
-      codeHeader: ["代码", "最大含出血面积", "500", "1000", "2000", "3000", "4000", "5000", "10000", "20000", "30000", "50000"],
-      codeRows: [
-        ["002", 1999, 18, 25, 40, 50, 60, 110, 200, "", "", ""],
-        ["003", 3164, 22, 30, 50, 60, 75, 130, 240, "", "", ""],
-        ["004", 3999, 25, 35, 60, 75, 90, 155, 290, "", "", ""],
-        ["005", 4944, 30, 45, 70, 90, 110, 195, 360, "", "", ""],
-        ["055", 5684, 35, 50, 80, 100, 120, 215, 400, "", "", ""],
-        ["006", 6264, 40, 55, 90, 110, 130, 230, 430, "", "", ""],
-        ["007", 7999, 50, 70, 110, 135, 160, 290, 530, "", "", ""],
-        ["008", 7999, 50, 70, 110, 135, 160, 290, 530, "", "", ""],
-        ["009", 9999, 65, 90, 140, 170, 200, 360, 660, "", "", ""],
-        ["100", 15999, 90, 130, 200, 245, 290, 520, 960, "", "", ""]
-      ],
-      craftHeader: ["工艺名称", "500", "1000", "2000", "2500", "5000", "7500", "10000", "20000", "30000", "50000"],
-      craftRows: [
-        ["无色压凹（单面）", "", 30, 40, "", 70, "", 130, "", "", ""],
-        ["套字压凹（单面）", "", 80, 90, "", 120, "", 230, "", "", ""],
-        ["烫金 小面积（单面）", "", 50, 60, "", 90, "", 170, "", "", ""],
-        ["烫金 小面积（双面）", "", 70, 80, "", 120, "", 230, "", "", ""],
-        ["击凸（单面）", "", 80, 90, "", 120, "", 230, "", "", ""]
-      ]
-    },
-    // 6) 海成专用
-    {
-      meta: [
-        ["所属小组", "1号小组"],
-        ["总报价表", "1号报价表"],
-        ["1号报价表全称", "1号报价表-6：400克米白卡 / 160克半透卡 / 200克合成纸（海成专用 / 撕不烂）"],
-        ["简称", "海成专用"],
-        ["折扣系数", 0.75],
-        ["备注", "鸡眼工艺分（单面）/（对折两张），请按工艺分别报价"]
-      ],
-      codeHeader: ["代码", "最大含出血面积", "1000", "2000", "3000", "4000", "5000", "10000", "20000"],
-      codeRows: [
-        ["002", 1999, 30, 45, 65, 80, 95, 170, ""],
-        ["003", 3164, 35, 55, 80, 95, 115, 210, ""],
-        ["004", 3999, 45, 65, 95, 115, 135, 250, ""],
-        ["005", 4944, 55, 85, 120, 145, 170, 310, ""],
-        ["055", 5684, 65, 95, 135, 165, 195, 350, ""],
-        ["006", 6264, 70, 105, 150, 180, 215, 385, ""],
-        ["007", 7999, 85, 125, 175, 215, 255, 455, ""],
-        ["008", 7999, 85, 125, 175, 215, 255, 455, ""],
-        ["009", 9999, 110, 160, 225, 275, 325, 580, ""],
-        ["100", 15999, 160, 230, 325, 395, 470, 835, ""]
-      ],
-      craftHeader: ["工艺名称", "1000", "2000", "3000", "4000", "5000", "10000", "20000"],
-      craftRows: [
-        ["烫金 小面积（单面）", 50, 60, 70, 80, 90, 170, ""],
-        ["烫金 小面积（双面）", 70, 80, 90, 100, 120, 230, ""],
-        ["鸡眼（单面）", 40, 60, 90, 120, 150, 300, ""],
-        ["鸡眼 （对折两张）", 60, 120, 180, 240, 300, 550, ""]
-      ]
-    },
-    // 7) 700布纹纸
-    {
-      meta: [
-        ["所属小组", "1号小组"],
-        ["总报价表", "1号报价表"],
-        ["1号报价表全称", "1号报价表-7：700克 A级布纹纸 双面过光油（厚度0.85mm）"],
-        ["简称", "700布纹纸"],
-        ["折扣系数", 1],
-        ["备注", "烫金小面积后缀（单面）/（双面）必须保留"]
-      ],
-      codeHeader: ["代码", "最大含出血面积", "1000", "2000", "3000", "4000", "5000", "10000", "20000"],
-      codeRows: [
-        ["002", 1999, 30, 45, 65, 80, 95, 170, ""],
-        ["003", 3164, 35, 55, 80, 95, 115, 210, ""],
-        ["004", 3999, 45, 65, 95, 115, 135, 250, ""],
-        ["005", 4944, 55, 85, 120, 145, 170, 310, ""],
-        ["055", 5684, 65, 95, 135, 165, 195, 350, ""],
-        ["006", 6264, 70, 105, 150, 180, 215, 385, ""],
-        ["007", 7999, 85, 125, 175, 215, 255, 455, ""],
-        ["008", 7999, 85, 125, 175, 215, 255, 455, ""],
-        ["009", 9999, 110, 160, 225, 275, 325, 580, ""],
-        ["100", 15999, 160, 230, 325, 395, 470, 835, ""]
-      ],
-      craftHeader: ["工艺名称", "1000", "2000", "3000", "4000", "5000", "10000", "20000"],
-      craftRows: [
-        ["烫金小面积(单面）", 90, 110, 130, 140, 160, 200, ""],
-        ["烫金小面积(双面）", 110, 130, 150, 160, 200, 240, ""],
-        ["凹凸", 110, 120, 130, 140, 150, 200, ""],
-        ["鸡眼", 40, 60, 90, 120, 150, 300, ""],
-        ["无色压凹（单面）", 110, 120, 130, 140, 150, 200, ""],
-        ["深凹烫金（单面）", 110, 120, 130, 140, 150, 200, ""]
-      ]
-    },
-    // 8) 600牛皮纸
-    {
-      meta: [
-        ["所属小组", "1号小组"],
-        ["总报价表", "1号报价表"],
-        ["1号报价表全称", "1号报价表-8：600克 A级牛皮纸（厚度0.80mm）"],
-        ["简称", "600牛皮纸"],
-        ["折扣系数", 0.75],
-        ["备注", "烫金与丝印白均区分（单面）/（双面）"]
-      ],
-      codeHeader: ["代码", "最大含出血面积", "1000", "2000", "3000", "4000", "5000", "10000", "20000"],
-      codeRows: [
-        ["002", 1999, 25, 40, 55, 65, 80, 150, ""],
-        ["003", 3164, 30, 50, 70, 80, 100, 180, ""],
-        ["004", 3999, 35, 60, 85, 95, 120, 215, ""],
-        ["005", 4944, 45, 75, 105, 120, 150, 270, ""],
-        ["055", 5684, 50, 85, 120, 135, 170, 305, ""],
-        ["006", 6264, 55, 95, 130, 150, 185, 335, ""],
-        ["007", 7999, 70, 115, 155, 180, 220, 395, ""],
-        ["008", 7999, 70, 115, 155, 180, 220, 395, ""],
-        ["009", 9999, 90, 145, 200, 230, 280, 505, ""],
-        ["100", 15999, 130, 210, 290, 335, 405, 725, ""]
-      ],
-      craftHeader: ["工艺名称", "1000", "2000", "3000", "4000", "5000", "10000", "20000"],
-      craftRows: [
-        ["烫金 小面积（单面）", 50, 60, 70, 80, 90, 170, ""],
-        ["烫金 小面积（双面）", 70, 80, 90, 100, 120, 230, ""],
-        ["凹凸", 80, 90, 100, 110, 120, 230, ""],
-        ["鸡眼", 40, 60, 90, 120, 150, 300, ""],
-        ["丝印白（单面）", 30, 40, 50, 60, 70, 130, ""],
-        ["丝印白（双面）", 50, 60, 70, 90, 90, 160, ""]
-      ]
-    },
-    // 9) 40C棉麻布
-    {
-      meta: [
-        ["所属小组", "1号小组"],
-        ["总报价表", "1号报价表"],
-        ["1号报价表全称", "1号报价表-9：棉麻布 40C 米白色"],
-        ["简称", "40C棉麻布"],
-        ["折扣系数", 0.75],
-        ["备注", "工艺均为（单面），单列一栏；如无双面请留空对应行"]
-      ],
-      codeHeader: ["代码", "最大含出血面积", "1000", "2000", "3000", "4000", "5000", "10000"],
-      codeRows: [
-        ["002", 1999, 25, 40, 60, 75, 90, 160],
-        ["003", 3164, 30, 50, 75, 90, 110, 200],
-        ["004", 3999, 35, 60, 90, 110, 130, 240],
-        ["005", 4944, 45, 75, 110, 135, 160, 290],
-        ["055", 5684, 50, 85, 125, 155, 180, 330],
-        ["006", 6264, 55, 95, 135, 170, 195, 360],
-        ["007", 7999, 70, 115, 165, 205, 235, 430],
-        ["008", 7999, 70, 115, 165, 205, 235, 430],
-        ["009", 9999, 90, 145, 215, 260, 300, 545],
-        ["100", 15999, 130, 210, 310, 380, 435, 790]
-      ],
-      craftHeader: ["工艺名称", "1000", "2000", "3000", "4000", "5000", "10000"],
-      craftRows: [
-        ["专色（单面）", 90, 120, 150, 180, 200, 300],
-        ["黑白图案（单面）", 30, 50, 70, 90, 120, 200],
-        ["红色（单面）", 30, 50, 70, 90, 120, 200]
-      ]
-    }
-  ];
-
-  // 将「代码 + 工艺 + 单/双面」注入到每张表，sheet 命名为简称
-  TEMPLATE_ROWS.forEach((t) => {
+  // === 模板 = 默认报价表（DEFAULT_PAPER_CONFIG + DEFAULT_CRAFT_CONFIG）动态生成 ===
+  // 每个 Sheet 均含「直接系数档位规则」行：
+  //   - 702铜版纸 已填档位规则（1000-4000:1.6/1.5;5000-10000:1.5/1.45;20000-:1.45/1.4）
+  //   - 其余 Sheet 为空占位，方便后续填写后重新导入
+  DEFAULT_PAPER_CONFIG.forEach((paper, idx) => {
     const rows = [];
-    t.meta.forEach((m) => rows.push(m));
+    // 元信息区
+    rows.push(["所属小组", GROUP_META.name]);
+    rows.push(["总报价表", getCurrentPriceList().name]);
+    rows.push(["报价表全称", paper.name]);
+    rows.push(["简称", paper.shortName]);
+    rows.push(["折扣系数", paper.discount]);
+    // 直接系数档位规则行（702铜版纸已填，其余为空占位）
+    const directCoeffStr = (paper.directCoeff && paper.directCoeff.tierRules && paper.directCoeff.tierRules.length)
+      ? paper.directCoeff.tierRules.map(r => {
+          const maxStr = r.tierMax === Infinity ? "" : r.tierMax;
+          return `${r.tierMin}-${maxStr}:${r.max}/${r.min}`;
+        }).join(";")
+      : "";
+    rows.push(["直接系数档位规则", directCoeffStr]);
+    rows.push(["备注", "直接系数档位规则格式：最低张数-最高张数:最高系数/最低系数，多条用;分隔，如 1000-4000:1.6/1.5"]);
     rows.push([]);
-    rows.push(t.codeHeader);
-    t.codeRows.forEach((r) => rows.push(r));
-    if (t.craftHeader) {
+
+    // 规格区：取规格档位 + 工艺档位并集
+    const specTierKeys = paper.specs.length ? Object.keys(paper.specs[0].prices).map(Number) : [];
+    const crafts = DEFAULT_CRAFT_CONFIG[paper.id] || [];
+    const craftTierKeys = crafts.length ? Object.keys(crafts[0].prices).map(Number) : [];
+    const tierSet = new Set([...specTierKeys, ...craftTierKeys]);
+    const tierKeys = Array.from(tierSet).sort((a, b) => a - b).map(String);
+
+    rows.push(["代码", "最大含出血面积", ...tierKeys]);
+    paper.specs.forEach(spec => {
+      rows.push([
+        spec.code,
+        spec.maxArea,
+        ...tierKeys.map(t => {
+          const v = spec.prices[t];
+          return v == null ? "" : v;
+        })
+      ]);
+    });
+
+    // 工艺区
+    if (crafts.length) {
       rows.push([]);
-      rows.push(t.craftHeader);
-      t.craftRows.forEach((r) => rows.push(r));
+      rows.push(["工艺名称", ...tierKeys]);
+      crafts.forEach(craft => {
+        rows.push([
+          craft.name,
+          ...tierKeys.map(t => {
+            const v = craft.prices[t];
+            return v == null ? "" : v;
+          })
+        ]);
+      });
     }
+
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    // 从 meta 中提取简称作为 Sheet 名（跳过架构层级行）
-    const shortNameMeta = t.meta.find(m => m[0] === "简称");
-    XLSX.utils.book_append_sheet(wb, ws, (shortNameMeta && shortNameMeta[1]) || ("Sheet" + (TEMPLATE_ROWS.indexOf(t) + 1)));
+    XLSX.utils.book_append_sheet(wb, ws, paper.shortName || ("Sheet" + (idx + 1)));
   });
 
   XLSX.writeFile(wb, "KOKALabel1号报价表模板_" + formatDateFile() + ".xlsx");
-  showToast("模板已下载（9张表1:1，含单/双面工艺）");
+  showToast("模板已下载（" + DEFAULT_PAPER_CONFIG.length + "张表，含直接系数档位规则行）");
 }
 
 function parsePaperExcel(arrayBuffer) {
@@ -2537,7 +2322,7 @@ function parsePaperExcel(arrayBuffer) {
     }
 
     // 读取表头信息区（按标签匹配，兼容有无"所属小组"/"总报价表"行）
-    let name = "", shortName = "", discountRaw = "";
+    let name = "", shortName = "", discountRaw = "", directCoeffRaw = "";
     for (let i = 0; i < Math.min(rows.length, 8); i++) {
       const label = String(rows[i] && rows[i][0] || "").trim();
       const val = rows[i] && rows[i][1];
@@ -2550,8 +2335,32 @@ function parsePaperExcel(arrayBuffer) {
       if (label === "1号报价表全称" || label === "报价表全称") name = String(val || "").trim();
       else if (label === "简称") shortName = String(val || "").trim();
       else if (label === "折扣系数") discountRaw = val;
+      else if (label === "直接系数档位规则") directCoeffRaw = String(val || "").trim();
     }
     const discount = discountRaw === "" || discountRaw == null ? 1 : Number(discountRaw);
+
+    // 解析直接系数档位规则：格式 "1000-4000:1.6/1.5;5000-10000:1.5/1.45;20000-:1.45/1.4"
+    // 档位最高张数留空表示无上限；多条规则用 ; 或 ；分隔
+    let directCoeff = null;
+    if (directCoeffRaw) {
+      const rules = [];
+      directCoeffRaw.split(/[;；]/).forEach(seg => {
+        seg = seg.trim();
+        if (!seg) return;
+        const m = seg.match(/^(\d+)\s*-\s*(\d*)\s*:\s*([\d.]+)\s*\/\s*([\d.]+)$/);
+        if (m) {
+          rules.push({
+            tierMin: Number(m[1]),
+            tierMax: m[2] ? Number(m[2]) : Infinity,
+            max: Number(m[3]),
+            min: Number(m[4])
+          });
+        } else {
+          errors.push(`「${sheetName}」直接系数档位规则格式无效：${seg}（应为 最低张数-最高张数:最高系数/最低系数）`);
+        }
+      });
+      if (rules.length) directCoeff = { tierRules: rules };
+    }
 
     if (!name) {
       errors.push(`「${sheetName}」缺少报价表全称，已跳过`);
@@ -2704,6 +2513,11 @@ function parsePaperExcel(arrayBuffer) {
       name,
       shortName,
       discount: isNaN(discount) || discount <= 0 ? 1 : discount,
+      // 直接系数：Sheet 专属配置。优先使用 Excel 中填写的档位规则；
+      // 未填写时匹配默认简称则继承默认配置（如 702铜版纸 档位规则），否则提供占位模板
+      directCoeff: directCoeff || (defaultPaper && defaultPaper.directCoeff
+        ? JSON.parse(JSON.stringify(defaultPaper.directCoeff))
+        : { tierRules: [] }),
       specs
     });
     if (crafts.length) {
@@ -3274,6 +3088,23 @@ function bindEvents() {
       if (tierExists) els.tier.value = String(APP_PROFILE.defaultTier);
     }
   } catch (e) { console.error("[init] 默认档位失败:", e); }
+
+  // 同步直接系数模式按钮状态（默认直接系数模式）
+  try {
+    els.modeBtns.forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.mode === calcMode);
+    });
+    // 同步直接系数模式下吊绳/邮费输入区域的显隐
+    const ropeGroup = els.rope ? els.rope.closest(".form-group") : null;
+    const regionGroup = els.region ? els.region.closest(".form-group") : null;
+    if (calcMode === "direct") {
+      if (ropeGroup) ropeGroup.style.display = "none";
+      if (regionGroup) regionGroup.style.display = "none";
+    } else {
+      if (ropeGroup) ropeGroup.style.display = "";
+      if (regionGroup) regionGroup.style.display = "";
+    }
+  } catch (e) { console.error("[init] 模式同步失败:", e); }
 
   // 应用个人主页的默认纸张材质设置
   try {

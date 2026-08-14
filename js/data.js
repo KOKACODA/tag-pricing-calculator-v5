@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v6.0 - 数据配置层
+// KOKALabel报价系统 v6.1 - 数据配置层
 // ============================================================
 "use strict";
 
@@ -60,6 +60,7 @@ const DEFAULT_PAPER_CONFIG = [
 "name": "1号报价表-1：350克 A级铜版纸 双面过哑胶（厚度0.38mm）",
 "shortName": "350铜版纸",
 "discount": 1,
+"directCoeff": { "tierRules": [] },
 "specs": [
   {
     "code": "002",
@@ -208,6 +209,7 @@ const DEFAULT_PAPER_CONFIG = [
 "name": "1号报价表-2：400克 A级铜版纸 双面过哑胶（厚度0.45mm）",
 "shortName": "400铜版纸",
 "discount": 0.91,
+"directCoeff": { "tierRules": [] },
 "specs": [
   {
     "code": "002",
@@ -356,6 +358,13 @@ const DEFAULT_PAPER_CONFIG = [
 "name": "1号报价表-3：702克 A级铜版纸 双面过哑胶（厚度0.85mm）",
 "shortName": "702铜版纸",
 "discount": 1,
+"directCoeff": {
+  "tierRules": [
+    { "tierMin": 1000,  "tierMax": 4000,      "max": 1.6,  "min": 1.5  },
+    { "tierMin": 5000,  "tierMax": 10000,     "max": 1.5,  "min": 1.45 },
+    { "tierMin": 20000, "tierMax": Infinity,  "max": 1.45, "min": 1.4  }
+  ]
+},
 "specs": [
   {
     "code": "002",
@@ -484,6 +493,7 @@ const DEFAULT_PAPER_CONFIG = [
 "name": "1号报价表-4：米白卡 606克（厚度0.8mm）",
 "shortName": "606米白卡",
 "discount": 1,
+"directCoeff": { "tierRules": [] },
 "specs": [
   {
     "code": "002",
@@ -652,6 +662,7 @@ const DEFAULT_PAPER_CONFIG = [
 "name": "1号报价表-5：500克 白卡纸（厚度0.55mm）正面过哑胶",
 "shortName": "500白卡纸",
 "discount": 0.75,
+"directCoeff": { "tierRules": [] },
 "specs": [
   {
     "code": "002",
@@ -820,6 +831,7 @@ const DEFAULT_PAPER_CONFIG = [
 "name": "1号报价表-6：400克米白卡 / 160克半透卡 / 200克合成纸（海成专用 / 撕不烂）",
 "shortName": "海成专用",
 "discount": 0.75,
+"directCoeff": { "tierRules": [] },
 "specs": [
   {
     "code": "002",
@@ -958,6 +970,7 @@ const DEFAULT_PAPER_CONFIG = [
 "name": "1号报价表-7：700克 A级布纹纸 双面过光油（厚度0.85mm）",
 "shortName": "700布纹纸",
 "discount": 1,
+"directCoeff": { "tierRules": [] },
 "specs": [
   {
     "code": "002",
@@ -1096,6 +1109,7 @@ const DEFAULT_PAPER_CONFIG = [
 "name": "1号报价表-8：600克 A级牛皮纸（厚度0.80mm）",
 "shortName": "600牛皮纸",
 "discount": 0.75,
+"directCoeff": { "tierRules": [] },
 "specs": [
   {
     "code": "002",
@@ -1234,6 +1248,7 @@ const DEFAULT_PAPER_CONFIG = [
 "name": "1号报价表-9：棉麻布 40C 米白色",
 "shortName": "40C棉麻布",
 "discount": 0.75,
+"directCoeff": { "tierRules": [] },
 "specs": [
   {
     "code": "002",
@@ -1356,6 +1371,145 @@ const DEFAULT_PAPER_CONFIG = [
     }
   }
 ]
+  },
+  {
+"id": "paper10",
+"name": "1号报价表-10：米白卡 602克（厚度0.8mm）",
+"shortName": "602米白卡",
+"discount": 1,
+"directCoeff": { "tierRules": [] },
+"specs": [
+  {
+    "code": "002",
+    "maxArea": 1999,
+    "prices": {
+      "1000": 40,
+      "2000": 60,
+      "5000": 135,
+      "10000": 260,
+      "20000": 500,
+      "30000": 760,
+      "50000": 1250
+    }
+  },
+  {
+    "code": "003",
+    "maxArea": 3164,
+    "prices": {
+      "1000": 45,
+      "2000": 75,
+      "5000": 162,
+      "10000": 308,
+      "20000": 590,
+      "30000": 880,
+      "50000": 1450
+    }
+  },
+  {
+    "code": "004",
+    "maxArea": 3999,
+    "prices": {
+      "1000": 55,
+      "2000": 95,
+      "5000": 200,
+      "10000": 380,
+      "20000": 730,
+      "30000": 1080,
+      "50000": 1780
+    }
+  },
+  {
+    "code": "005",
+    "maxArea": 4944,
+    "prices": {
+      "1000": 65,
+      "2000": 105,
+      "5000": 220,
+      "10000": 420,
+      "20000": 800,
+      "30000": 1150,
+      "50000": 1900
+    }
+  },
+  {
+    "code": "055",
+    "maxArea": 5684,
+    "prices": {
+      "1000": 75,
+      "2000": 115,
+      "5000": 240,
+      "10000": 460,
+      "20000": 880,
+      "30000": 1300,
+      "50000": 2150
+    }
+  },
+  {
+    "code": "006",
+    "maxArea": 6264,
+    "prices": {
+      "1000": 85,
+      "2000": 125,
+      "5000": 260,
+      "10000": 500,
+      "20000": 950,
+      "30000": 1400,
+      "50000": 2310
+    }
+  },
+  {
+    "code": "007",
+    "maxArea": 7999,
+    "prices": {
+      "1000": 105,
+      "2000": 155,
+      "5000": 320,
+      "10000": 610,
+      "20000": 1160,
+      "30000": 1700,
+      "50000": 2800
+    }
+  },
+  {
+    "code": "008",
+    "maxArea": 7999,
+    "prices": {
+      "1000": 105,
+      "2000": 155,
+      "5000": 320,
+      "10000": 610,
+      "20000": 1160,
+      "30000": 1700,
+      "50000": 2800
+    }
+  },
+  {
+    "code": "009",
+    "maxArea": 9064,
+    "prices": {
+      "1000": 125,
+      "2000": 185,
+      "5000": 380,
+      "10000": 730,
+      "20000": 1400,
+      "30000": 2050,
+      "50000": 3400
+    }
+  },
+  {
+    "code": "100",
+    "maxArea": 10000,
+    "prices": {
+      "1000": 145,
+      "2000": 205,
+      "5000": 410,
+      "10000": 780,
+      "20000": 1500,
+      "30000": 2150,
+      "50000": 3550
+    }
+  }
+]
   }
 ];
 // 给默认纸张增加 priceListId
@@ -1419,6 +1573,9 @@ const DEFAULT_CRAFT_CONFIG = {
 {"id": "craft9_1", "name": "专色（单面）", "prices": {"1000": 90, "2000": 120, "3000": 150, "4000": 180, "5000": 200, "10000": 300}},
 {"id": "craft9_2", "name": "黑白图案（单面）", "prices": {"1000": 30, "2000": 50, "3000": 70, "4000": 90, "5000": 120, "10000": 200}},
 {"id": "craft9_3", "name": "红色（单面）", "prices": {"1000": 30, "2000": 50, "3000": 70, "4000": 90, "5000": 120, "10000": 200}}
+  ],
+  "paper10": [
+{"id": "craft10_1", "name": "压凹+烫金（单面）", "prices": {"1000": 30, "2000": 40, "2500": null, "5000": 70, "7500": null, "10000": 130, "20000": null, "30000": null, "50000": null}}
   ]
 };
 /**
@@ -1604,6 +1761,48 @@ let DIRECT_COEFF_LEVELS = loadFromStorage("directCoeffLevels", DEFAULT_DIRECT_CO
     console.info("[v5.2] 客户等级系数已从旧默认迁移至新默认");
   }
 })();
+
+// v6.1 迁移：为旧版 PAPER_CONFIG 补充 602米白卡（paper10）
+(function migrateAddPaper10() {
+  const hasPaper10 = PAPER_CONFIG.some(p => p.id === "paper10");
+  if (!hasPaper10) {
+    const p10 = DEFAULT_PAPER_CONFIG.find(p => p.id === "paper10");
+    if (p10) {
+      PAPER_CONFIG.push(JSON.parse(JSON.stringify(p10)));
+      saveToStorage("paperConfig", PAPER_CONFIG);
+      console.info("[v6.1] 已补充 602米白卡 纸张");
+    }
+  }
+})();
+// v6.1 迁移：为旧版 CRAFT_CONFIG 补充 602米白卡 工艺
+(function migrateAddPaper10Craft() {
+  if (!CRAFT_CONFIG["paper10"] && DEFAULT_CRAFT_CONFIG["paper10"]) {
+    CRAFT_CONFIG["paper10"] = DEFAULT_CRAFT_CONFIG["paper10"].map(c => ({ ...c, prices: { ...c.prices } }));
+    saveToStorage("craftConfig", CRAFT_CONFIG);
+    console.info("[v6.1] 已补充 602米白卡 工艺配置");
+  }
+})();
+// v6.1 迁移：为所有纸张补充 sheet 专属直接系数配置（含 702铜版纸 档位规则与其余占位模板）
+(function migrateAllPaperDirectCoeff() {
+  let changed = false;
+  PAPER_CONFIG.forEach(p => {
+    if (!p.directCoeff) {
+      const def = DEFAULT_PAPER_CONFIG.find(d => d.id === p.id);
+      if (def && def.directCoeff) {
+        p.directCoeff = JSON.parse(JSON.stringify(def.directCoeff));
+        changed = true;
+      } else {
+        p.directCoeff = { tierRules: [] };
+        changed = true;
+      }
+    }
+  });
+  if (changed) {
+    saveToStorage("paperConfig", PAPER_CONFIG);
+    console.info("[v6.1] 已为所有纸张补充直接系数配置（702铜版纸含档位规则，其余为占位模板）");
+  }
+})();
+
 let APP_PROFILE = loadFromStorage("appProfile", {
   companyName: "KOKALabel",
   companyPhone: "",

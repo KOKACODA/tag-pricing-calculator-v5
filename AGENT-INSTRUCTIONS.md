@@ -5,7 +5,7 @@
 ## 项目概述
 
 - **项目名**：KOKALabel报价系统
-- **当前版本**：v6.0
+- **当前版本**：v6.1
 - **架构**：多文件（CSS / JS / HTML 分离）
 - **GitHub 仓库**：`KOKACODA/tag-pricing-calculator-v5`
 - **线上地址**：https://tag-pricing-calculator-v5.pages.dev
