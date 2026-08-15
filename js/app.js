@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v6.5 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v6.6 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -1791,7 +1791,7 @@ function setLocalBackupStatus(html, isError) {
 
 function exportLocalBackup() {
   const data = {
-    version: "6.0",
+    version: "6.5",
     kind: "local-backup",
     exportAt: new Date().toISOString(),
     priceLists: PRICE_LISTS,
@@ -1936,7 +1936,7 @@ function importLocalBackup(file) {
 // -------------------- 导入 / 导出完整配置 --------------------
 function exportFullData() {
   const data = {
-    version: "6.0",
+    version: "6.5",
     exportAt: new Date().toISOString(),
     priceLists: PRICE_LISTS,
     currentPriceListId: CURRENT_PRICE_LIST_ID,
@@ -1959,6 +1959,8 @@ function importFullData(file) {
   reader.onload = e => {
     try {
       const data = JSON.parse(e.target.result);
+      // v6.6：全量导入同样执行数据校验（与本地备份恢复一致），防止损坏/恶意 JSON 导致崩溃
+      validateImportedData(data);
       // 还原报价表组结构
       if (data.priceLists && Array.isArray(data.priceLists)) {
         PRICE_LISTS = data.priceLists;
@@ -2266,8 +2268,8 @@ function parsePaperExcel(arrayBuffer) {
       errors.push(`简称「${shortName}」重复，已跳过`);
       return;
     }
-    if (isNaN(discount) || discount <= 0) {
-      errors.push(`「${sheetName}」折扣系数无效，已使用默认值 1`);
+    if (isNaN(discount) || discount <= 0 || discount > 10) {
+      errors.push(`「${sheetName}」折扣系数无效（应为 0~10 之间），已使用默认值 1`);
     }
 
     shortNames.add(shortName);
@@ -2288,11 +2290,31 @@ function parsePaperExcel(arrayBuffer) {
 
     const headerRow = rows[headerRowIndex];
     const tierKeys = [];
+    const rawHeader = [];
     for (let c = 2; c < headerRow.length; c++) {
       const val = headerRow[c];
-      if (val !== "" && !isNaN(Number(val)) && Number(val) > 0) {
+      const valid = val !== "" && !isNaN(Number(val)) && Number(val) > 0;
+      if (valid) {
         tierKeys.push(String(Number(val)));
+        rawHeader.push(String(Number(val)));
+      } else {
+        rawHeader.push(null);
       }
+    }
+    // v6.6：检测档位表头中间空列（误删列/合并单元格残留），避免价格静默错位
+    // 规则：第一个有效档位之后出现空列，且其后仍有有效档位 → 中间空列，报错提示
+    const firstValidIdx = rawHeader.findIndex(v => v !== null);
+    let midGap = false;
+    if (firstValidIdx !== -1) {
+      for (let i = firstValidIdx; i < rawHeader.length; i++) {
+        if (rawHeader[i] === null && rawHeader.slice(i + 1).some(v => v !== null)) {
+          midGap = true;
+          break;
+        }
+      }
+    }
+    if (midGap) {
+      errors.push(`「${sheetName}」档位表头中间存在空列（第 ${firstValidIdx + 3} 列附近），价格可能错位，请检查后重新导入`);
     }
 
     const specs = [];
@@ -2340,19 +2362,16 @@ function parsePaperExcel(arrayBuffer) {
       return;
     }
 
-    // 尽量沿用默认配置中相同简称的 paper id，使工艺配置 CRAFT_CONFIG 保持对应
+    // v6.6：始终生成唯一 ID，不再复用默认简称的 paper id。
+    // 原因：CRAFT_CONFIG 以 paper.id 为键且跨报价表共享，若复用默认 ID（如 paper2），
+    // 新导入报价表的工艺会覆盖原报价表的工艺（静默丢失）。唯一 ID 实现各报价表工艺完全隔离。
     const defaultPaper = DEFAULT_PAPER_CONFIG.find(p => p.shortName === shortName);
     let id;
-    if (defaultPaper) {
-      id = defaultPaper.id;
-    } else {
-      // 不匹配默认简称：生成唯一 ID，避免与默认 paper1~9 或其他导入纸碰撞
-      let counter = usedIds.size + 1;
-      do {
-        id = "paper_import_" + counter;
-        counter++;
-      } while (usedIds.has(id));
-    }
+    let counter = usedIds.size + 1;
+    do {
+      id = "paper_import_" + counter;
+      counter++;
+    } while (usedIds.has(id));
     usedIds.add(id);
 
     // 读取工艺区：查找 "工艺名称" 标题行
@@ -2404,7 +2423,7 @@ function parsePaperExcel(arrayBuffer) {
       id,
       name,
       shortName,
-      discount: isNaN(discount) || discount <= 0 ? 1 : discount,
+      discount: isNaN(discount) || discount <= 0 || discount > 10 ? 1 : discount,
       // 直接系数：Sheet 专属配置，只读取报价表表格三行（直接系数档位/最高倍数/最低倍数）。
       // 表格未填有效直接系数时，匹配默认简称则继承默认配置，否则为 null（按标准报价计算）
       directCoeff: directCoeff || (defaultPaper && defaultPaper.directCoeff
@@ -2414,6 +2433,14 @@ function parsePaperExcel(arrayBuffer) {
     });
     if (crafts.length) {
       craftsByPaper[id] = crafts;
+    } else if (defaultPaper && DEFAULT_CRAFT_CONFIG[defaultPaper.id] && DEFAULT_CRAFT_CONFIG[defaultPaper.id].length) {
+      // v6.6：Excel 无工艺区时，从默认配置复制同名简称纸张的工艺到新唯一 ID 下。
+      // 保持"导入后工艺可用"的既有行为，同时因 ID 唯一而不会覆盖其他报价表的工艺。
+      craftsByPaper[id] = DEFAULT_CRAFT_CONFIG[defaultPaper.id].map((c, ci) => ({
+        id: `craft_${id}_${ci + 1}`,
+        name: c.name,
+        prices: { ...c.prices }
+      }));
     }
   });
 
