@@ -6,8 +6,8 @@
   <meta name="googlebot" content="noindex, nofollow">
   <!-- P0 安全：CSP 策略 -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' cdn.sheetjs.com 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';">
-  <title>KOKALabel报价系统 v6.6</title>
-  <link rel="stylesheet" href="css/style.css?v=6.6">
+  <title>KOKALabel报价系统 v6.7</title>
+  <link rel="stylesheet" href="css/style.css?v=6.7">
 </head>
 <body>
   <!-- 顶部导航 -->
@@ -513,7 +513,6 @@
         <div class="table-toolbar">
           <input type="text" id="searchInput" placeholder="输入代码或面积搜索...">
           <span class="paper-discount" id="paperDiscount">请先选择纸张</span>
-          <span class="paper-direct-coeff" id="paperDirectCoeff" style="display:none;"></span>
           <span class="table-meta" id="tableMeta">行数：0</span>
         </div>
 
@@ -543,6 +542,22 @@
             <thead>
               <tr>
                 <th>工艺名称</th>
+                <!-- 动态档位表头 -->
+              </tr>
+            </thead>
+            <tbody>
+              <!-- 动态行 -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- v6.7：直接系数档位表（单独框体表格显示，位于吊牌特殊工艺价格表下方） -->
+        <div class="table-wrap" id="directCoeffWrap" style="margin-top:20px;">
+          <h3 style="font-size:14px;color:var(--brand-dark);margin-bottom:10px;">直接系数档位表</h3>
+          <table id="directCoeffTable">
+            <thead>
+              <tr>
+                <th>项目</th>
                 <!-- 动态档位表头 -->
               </tr>
             </thead>
@@ -886,7 +901,7 @@
         <div class="setting-row">
           <div class="setting-info">
             <div class="setting-label">当前版本</div>
-            <div class="setting-desc">KOKALabel报价系统 v6.6</div>
+            <div class="setting-desc">KOKALabel报价系统 v6.7</div>
           </div>
           <div class="setting-control">
             <span class="placeholder-badge">正式版</span>
@@ -921,6 +936,6 @@
 
   <!-- P1.4: SheetJS defer 备用加载（不阻塞渲染），app.js 中 loadSheetJS() 为按需加载兜底 -->
   <script defer src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-  <script src="js/data.js?v=6.6"></script>
-  <script src="js/app.js?v=6.6"></script>
+  <script src="js/data.js?v=6.7"></script>
+  <script src="js/app.js?v=6.7"></script>
 </body></html>

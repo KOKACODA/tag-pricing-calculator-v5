@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v6.6 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v6.7 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -443,7 +443,8 @@ const els = {
   priceTable: document.getElementById("priceTable"),
   craftTable: document.getElementById("craftTable"),
   paperDiscount: document.getElementById("paperDiscount"),
-  paperDirectCoeff: document.getElementById("paperDirectCoeff"),
+  directCoeffTable: document.getElementById("directCoeffTable"),
+  directCoeffWrap: document.getElementById("directCoeffWrap"),
   tableMeta: document.getElementById("tableMeta"),
   prevPaper: document.getElementById("prevPaper"),
   nextPaper: document.getElementById("nextPaper"),
@@ -1249,16 +1250,25 @@ function renderPriceTable() {
   `).join("");
 
   els.paperDiscount.textContent = `${paper.name} | ${paper.discount === 1 ? "无折扣" : (paper.discount * 10).toFixed(1) + "折"}`;
-  // 直接系数显示（统一用 paperHasDirectCoeff 判断，确保三行完整且数量一致）
-  if (els.paperDirectCoeff) {
+  // v6.7：直接系数档位表（单独框体表格显示，位于吊牌特殊工艺价格表下方）
+  // 统一用 paperHasDirectCoeff 判断，确保三行完整且数量一致
+  if (els.directCoeffTable && els.directCoeffWrap) {
     if (paperHasDirectCoeff(paper)) {
       const dc = paper.directCoeff;
-      const dcInfo = dc.tiers.map((t, i) => `${t}张:×${dc.max[i]}/×${dc.min[i]}`).join("  ");
-      els.paperDirectCoeff.textContent = `直接系数档位：${dcInfo}`;
-      els.paperDirectCoeff.style.display = "inline";
+      const dcTiers = dc.tiers.map(t => `${t}张`);
+      const dcTheadRow = els.directCoeffTable.querySelector("thead tr");
+      dcTheadRow.innerHTML = '<th>项目</th>' + dcTiers.map(t => `<th>${t}</th>`).join("");
+      const dcTbody = els.directCoeffTable.querySelector("tbody");
+      dcTbody.innerHTML = `
+        <tr><td><strong>最高倍数</strong></td>${dc.max.map(v => `<td>×${formatMoney(Number(v))}</td>`).join("")}</tr>
+        <tr><td><strong>最低倍数</strong></td>${dc.min.map(v => `<td>×${formatMoney(Number(v))}</td>`).join("")}</tr>
+      `;
+      els.directCoeffWrap.style.display = "";
     } else {
-      els.paperDirectCoeff.textContent = "";
-      els.paperDirectCoeff.style.display = "none";
+      els.directCoeffTable.querySelector("thead tr").innerHTML = '<th>项目</th>';
+      els.directCoeffTable.querySelector("tbody").innerHTML =
+        '<tr><td colspan="2" style="text-align:center;color:var(--text-secondary);">该纸张无直接系数（最高/最低倍数为空），按标准报价计算</td></tr>';
+      els.directCoeffWrap.style.display = "";
     }
   }
   els.tableMeta.textContent = `行数：${filtered.length} / ${paper.specs.length}`;
