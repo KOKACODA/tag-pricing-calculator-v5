@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v6.4 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v6.5 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -278,13 +278,11 @@ function calculate(inputs) {
     const baseOriginalPrice = hasExactTier(spec.prices, tier)
       ? Number(spec.prices[tier])
       : null;
-    // v6.4：所有模式下纸张都按原价计算，不再乘纸张 discount
-    // 折扣只通过客户等级系数（标准模式）或直接系数（直接系数模式）体现
-    // 有直接系数的纸张：原价 × 直接系数 = 最终报价
-    // 无直接系数的纸张（直接系数模式下回退）：原价 × 客户等级系数 = 最终报价
-    // 标准模式：原价 × 客户等级系数 = 最终报价
+    // v6.5：标准报价模式纸张乘 discount（打折），直接系数模式纸张用原价（不打折）
+    // 折扣只在标准报价触发：纸张原价 × paper.discount = 折后价，再 × 客户等级系数 = 最终报价
+    // 直接系数模式：纸张原价（不打折），× 直接系数（或客户等级系数回退）= 最终报价
     const baseUnitPrice = hasExactTier(spec.prices, tier)
-      ? Number(spec.prices[tier])
+      ? Number(spec.prices[tier]) * (isDirect ? 1 : paper.discount)
       : null;
     // 纸张最终价（乘面积系数后）
     const paperOriginalPrice = baseOriginalPrice != null ? baseOriginalPrice * areaCoeff : null;
