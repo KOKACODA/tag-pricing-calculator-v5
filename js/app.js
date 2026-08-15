@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v6.8 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v6.9 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -982,8 +982,8 @@ function onCalculate() {
       <tr>
         <td>${escapeHtml(s.paperName)}</td>
         <td>${s.width} × ${s.length}${s.sizeType === "spread" ? "（展开）" : ""}</td>
-        <td>${s.area} mm²</td>
-        <td>
+        <td class="col-area">${s.area} mm²</td>
+        <td class="col-code">
           <div class="code-switcher${isManual ? " manual" : ""}">
             <span class="code-text">${escapeHtml(s.code)}${isManual ? '<span class="code-manual-tag">手动</span>' : ''}</span>
             <div class="code-arrows">

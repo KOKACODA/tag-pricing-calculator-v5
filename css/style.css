@@ -622,6 +622,14 @@
     .sheet-result-table td {
       color: var(--text);
     }
+    .sheet-result-table td.col-area,
+    .sheet-result-table td.col-code {
+      color: #d32f2f;
+      font-weight: 600;
+    }
+    .sheet-result-table td.col-code .code-text {
+      color: #d32f2f;
+    }
 
     .sheet-result-table tr:last-child td {
       border-bottom: none;
