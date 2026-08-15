@@ -851,6 +851,104 @@
       color: var(--brand-dark);
     }
 
+    /* ===================== v6.8 每纸独立临时直接系数 ===================== */
+    .temp-coeff-bar {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .temp-coeff-inputs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      width: 100%;
+    }
+    .temp-coeff-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(0, 0, 0, 0.03);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 4px 8px;
+    }
+    .temp-coeff-item .temp-coeff-name {
+      font-size: 12px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+    .temp-coeff-item .temp-coeff-input {
+      width: 70px;
+      padding: 4px 6px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--brand);
+      text-align: center;
+      outline: none;
+    }
+    .temp-coeff-item .temp-coeff-input:focus {
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(15, 111, 196, 0.12);
+    }
+    .temp-coeff-item .temp-coeff-tag {
+      font-size: 11px;
+      color: var(--warn, #d97706);
+      background: rgba(217, 119, 6, 0.1);
+      border-radius: 4px;
+      padding: 1px 5px;
+      white-space: nowrap;
+    }
+
+    /* 直接系数明细卡片 */
+    .price-card.direct-detail-card {
+      text-align: left;
+      padding: 18px 12px 14px;
+    }
+    .direct-detail-card .level-name {
+      margin-bottom: 4px;
+    }
+    .direct-detail-list {
+      margin: 6px 0;
+      padding: 6px 0;
+      border-top: 1px dashed var(--border);
+      border-bottom: 1px dashed var(--border);
+    }
+    .direct-detail-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      padding: 2px 0;
+      line-height: 1.5;
+    }
+    .direct-detail-row .dd-name {
+      color: var(--text-secondary);
+      white-space: nowrap;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .direct-detail-row .dd-calc {
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .direct-detail-row .dd-tag {
+      font-size: 10px;
+      color: var(--warn, #d97706);
+      background: rgba(217, 119, 6, 0.1);
+      border-radius: 4px;
+      padding: 1px 4px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .direct-detail-card .level-price {
+      font-size: 18px;
+      text-align: center;
+    }
+
     /* ===================== 邮费快速修改 ===================== */
     .shipping-override-bar {
       display: flex;

@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v6.7 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v6.8 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -244,11 +244,6 @@ function calculate(inputs) {
   let hasMissingTier = false;
   // 是否有任一纸张面积超过 10000 触发面积系数
   let hasAreaCoefficient = false;
-  // 直接系数模式：以第一张纸的 Sheet 专属系数配置为准
-  const primaryPaper = sheets.length
-    ? getPapersByPriceList(CURRENT_PRICE_LIST_ID).find(p => p.id === sheets[0].paperId)
-    : null;
-
   for (const sheet of sheets) {
     const { width, length, sizeType, paperId, craftIds } = sheet;
     if (!width || !length || width <= 0 || length <= 0) return null;
@@ -375,16 +370,57 @@ function calculate(inputs) {
     costIncomplete = !costKnown;
   }
 
-  // 报价系数：直接系数模式按档位从表格读取（无直接系数的纸张回退到客户等级），标准模式用 CUSTOMER_LEVELS
-  const coeffLevels = isDirect
-    ? (getDirectCoeffsForTier(tier, primaryPaper) || CUSTOMER_LEVELS)
-    : CUSTOMER_LEVELS;
-  const pricesByLevel = coeffLevels.map(level => ({
-    levelId: level.id,
-    levelName: level.name,
-    coefficient: level.coefficient,
-    price: cost * level.coefficient
-  }));
+  // 报价系数：直接系数模式每张纸独立系数（各等级分别计算），标准模式用 CUSTOMER_LEVELS 统一系数
+  let pricesByLevel;
+  if (isDirect) {
+    // v6.8：每张纸按各自 Sheet 直接系数计算，无直接系数的纸张回退到客户等级系数
+    // 工艺费用不乘系数，直接累加（防止多纸张混合时工艺计算错误）
+    pricesByLevel = DIRECT_COEFF_LEVELS.map((level, li) => {
+      const paperDetails = sheetDetails.map(sd => {
+        const paper = getPapersByPriceList(CURRENT_PRICE_LIST_ID).find(p => p.id === sd.paperId);
+        let coeff = null;
+        let hasDirectCoeff = false;
+        if (paper && paperHasDirectCoeff(paper)) {
+          const coeffs = getDirectCoeffsForTier(tier, paper);
+          if (coeffs && coeffs[li]) {
+            coeff = coeffs[li].coefficient;
+            hasDirectCoeff = true;
+          }
+        }
+        if (coeff == null) {
+          const cl = CUSTOMER_LEVELS[li];
+          coeff = cl ? cl.coefficient : 1;
+        }
+        const contributedPrice = sd.unitPrice != null ? sd.unitPrice * coeff : null;
+        return {
+          paperId: sd.paperId,
+          paperName: sd.paperName,
+          unitPrice: sd.unitPrice,
+          coefficient: coeff,
+          hasDirectCoeff,
+          contributedPrice
+        };
+      });
+      const total = paperDetails.reduce((sum, p) => sum + (p.contributedPrice != null ? p.contributedPrice : 0), 0) + craftTotal;
+      const incomplete = paperDetails.some(p => p.contributedPrice == null);
+      return {
+        levelId: level.id,
+        levelName: level.name,
+        coefficient: null, // 无统一系数（每张纸独立）
+        price: total,
+        costIncomplete: incomplete,
+        paperDetails,
+        craftTotal
+      };
+    });
+  } else {
+    pricesByLevel = CUSTOMER_LEVELS.map(level => ({
+      levelId: level.id,
+      levelName: level.name,
+      coefficient: level.coefficient,
+      price: cost * level.coefficient
+    }));
+  }
 
   return {
     sheetDetails,
@@ -434,6 +470,10 @@ const els = {
   customCoeffBar: document.getElementById("customCoeffBar"),
   customCoeffInput: document.getElementById("customCoeffInput"),
   customPriceCard: document.getElementById("customPriceCard"),
+  // v6.8：每纸独立临时直接系数
+  tempCoeffBar: document.getElementById("tempCoeffBar"),
+  tempCoeffInputs: document.getElementById("tempCoeffInputs"),
+  tempCoeffResults: document.getElementById("tempCoeffResults"),
   shippingOverrideBar: document.getElementById("shippingOverrideBar"),
   shippingOverrideInput: document.getElementById("shippingOverrideInput"),
   shippingOverrideClear: document.getElementById("shippingOverrideClear"),
@@ -1045,16 +1085,49 @@ function onCalculate() {
     }
   }
 
-  // 渲染三个客户等级报价卡片（右上角显示系数徽章）
-  els.priceCards.innerHTML = result.pricesByLevel.map((item, idx) => `
-    <div class="price-card${idx === 0 ? " highlight" : ""}">
-      <span class="coeff-badge">×${item.coefficient}</span>
-      <div class="level-name">${escapeHtml(item.levelName)}</div>
-      <div class="level-price">${result.costIncomplete
-        ? '<span class="price-missing">部分缺价</span>'
-        : formatMoney(item.price) + '<span class="unit">元</span>'}</div>
-    </div>
-  `).join("");
+  // 渲染报价卡片：直接系数模式显示每张纸独立系数的明细卡片，标准模式显示统一系数卡片
+  if (calcMode === "direct") {
+    // v6.8：明细卡片，每张纸单独乘系数后累加，工艺直接累加
+    els.priceCards.innerHTML = result.pricesByLevel.map((item, idx) => {
+      const coeffs = item.paperDetails.map(p => p.coefficient).filter(v => v != null);
+      const badge = coeffs.length === 1
+        ? `×${coeffs[0]}`
+        : (coeffs.length > 1 ? `×${Math.min(...coeffs)}-${Math.max(...coeffs)}` : "");
+      return `
+      <div class="price-card direct-detail-card${idx === 0 ? " highlight" : ""}">
+        <span class="coeff-badge">${badge}</span>
+        <div class="level-name">${escapeHtml(item.levelName)}</div>
+        <div class="direct-detail-list">
+          ${item.paperDetails.map(p => `
+            <div class="direct-detail-row">
+              <span class="dd-name">${escapeHtml(p.paperName)}</span>
+              <span class="dd-calc">${p.contributedPrice != null
+                ? `¥${formatMoney(p.unitPrice)} × ${p.coefficient} = ¥${formatMoney(p.contributedPrice)}`
+                : '<span class="price-missing">缺价</span>'}</span>
+              ${!p.hasDirectCoeff ? '<span class="dd-tag">无直接系数</span>' : ''}
+            </div>
+          `).join("")}
+          <div class="direct-detail-row">
+            <span class="dd-name">工艺</span>
+            <span class="dd-calc">${item.craftTotal ? '¥' + formatMoney(item.craftTotal) : '¥0'}</span>
+          </div>
+        </div>
+        <div class="level-price">${item.costIncomplete
+          ? '<span class="price-missing">部分缺价</span>'
+          : formatMoney(item.price) + '<span class="unit">元</span>'}</div>
+      </div>
+    `;}).join("");
+  } else {
+    els.priceCards.innerHTML = result.pricesByLevel.map((item, idx) => `
+      <div class="price-card${idx === 0 ? " highlight" : ""}">
+        <span class="coeff-badge">×${item.coefficient}</span>
+        <div class="level-name">${escapeHtml(item.levelName)}</div>
+        <div class="level-price">${result.costIncomplete
+          ? '<span class="price-missing">部分缺价</span>'
+          : formatMoney(item.price) + '<span class="unit">元</span>'}</div>
+      </div>
+    `).join("");
+  }
 
   // 渲染批量档位快速切换按钮
   if (els.tierQuickSwitch && els.tierQuickBtns) {
@@ -1081,14 +1154,24 @@ function onCalculate() {
   // 缓存本次计算结果供临时系数/邮费修改使用
   _lastResult = result;
 
-  // 临时系数输入栏：直接系数模式下标签改为"临时直接系数"
-  if (els.customCoeffBar) {
-    els.customCoeffBar.style.display = "flex";
-    const labelEl = els.customCoeffBar.querySelector(".custom-coeff-label");
-    if (labelEl) {
-      labelEl.textContent = calcMode === "direct" ? "临时直接系数：" : "临时毛利系数：";
+  // 临时系数输入栏：直接系数模式显示每纸独立临时直接系数，标准模式显示统一临时毛利系数
+  if (calcMode === "direct") {
+    if (els.customCoeffBar) { els.customCoeffBar.style.display = "none"; }
+    if (els.customPriceCard) { els.customPriceCard.style.display = "none"; els.customPriceCard.innerHTML = ""; }
+    if (els.tempCoeffBar) {
+      els.tempCoeffBar.style.display = "flex";
+      renderTempCoeffInputs();
+      renderTempCoeffResults();
     }
-    renderCustomCoeffCard();
+  } else {
+    if (els.tempCoeffBar) { els.tempCoeffBar.style.display = "none"; }
+    if (els.tempCoeffResults) { els.tempCoeffResults.style.display = "none"; els.tempCoeffResults.innerHTML = ""; }
+    if (els.customCoeffBar) {
+      els.customCoeffBar.style.display = "flex";
+      const labelEl = els.customCoeffBar.querySelector(".custom-coeff-label");
+      if (labelEl) labelEl.textContent = "临时毛利系数：";
+      renderCustomCoeffCard();
+    }
   }
 
   // 邮费快速修改栏：直接系数模式隐藏
@@ -1136,6 +1219,103 @@ function renderCustomCoeffCard() {
     </div>
   `;
   els.customPriceCard.style.display = "flex";
+}
+
+/**
+ * v6.8：渲染每纸独立临时直接系数输入框。
+ * 有直接系数的纸张默认值 = 该纸当前档位普通客户系数；无直接系数的纸张默认值 = 1（按折扣价/原价计入）。
+ */
+function renderTempCoeffInputs() {
+  if (!els.tempCoeffInputs || !_lastResult) return;
+  const details = _lastResult.sheetDetails;
+  const tier = _lastResult.tier;
+  els.tempCoeffInputs.innerHTML = details.map((sd, i) => {
+    const paper = getPapersByPriceList(CURRENT_PRICE_LIST_ID).find(p => p.id === sd.paperId);
+    const hasDirect = paper && paperHasDirectCoeff(paper);
+    let def = "1";
+    if (hasDirect) {
+      const coeffs = getDirectCoeffsForTier(tier, paper);
+      if (coeffs && coeffs[0]) def = String(coeffs[0].coefficient);
+    }
+    return `
+      <div class="temp-coeff-item">
+        <span class="temp-coeff-name">纸张${i + 1}（${escapeHtml(sd.paperName)}）</span>
+        <input type="number" class="temp-coeff-input" data-sheet-idx="${i}" min="0.01" max="10" step="0.01" value="${def}" />
+        ${!hasDirect ? '<span class="temp-coeff-tag">无直接系数</span>' : ''}
+      </div>
+    `;
+  }).join("");
+  els.tempCoeffInputs.querySelectorAll(".temp-coeff-input").forEach(input => {
+    input.addEventListener("input", renderTempCoeffResults);
+  });
+}
+
+/**
+ * v6.8：渲染每纸独立临时直接系数报价结果。
+ * 有直接系数的纸张：原价（不打折）× 临时系数；
+ * 无直接系数的纸张：有折扣打折扣（原价 × discount），无折扣则原价，再 × 临时系数（默认 1）。
+ * 工艺费用直接累加。
+ */
+function renderTempCoeffResults() {
+  if (!els.tempCoeffResults || !_lastResult) return;
+  const details = _lastResult.sheetDetails;
+  const craftTotal = _lastResult.craftTotal || 0;
+  const inputs = els.tempCoeffInputs.querySelectorAll(".temp-coeff-input");
+  let total = craftTotal;
+  let incomplete = false;
+  const rows = [];
+  details.forEach((sd, i) => {
+    const paper = getPapersByPriceList(CURRENT_PRICE_LIST_ID).find(p => p.id === sd.paperId);
+    const hasDirect = paper && paperHasDirectCoeff(paper);
+    const raw = inputs[i] ? inputs[i].value.trim() : "";
+    const coeff = parseFloat(raw);
+    if (!raw || isNaN(coeff) || coeff < 0.01) {
+      incomplete = true;
+      rows.push({
+        name: sd.paperName,
+        display: '<span class="price-missing">无效系数</span>',
+        tag: !hasDirect ? "无直接系数" : ""
+      });
+      return;
+    }
+    // 基础价：乘面积系数后的原价
+    const base = sd.originalUnitPrice != null ? sd.originalUnitPrice : sd.unitPrice;
+    // 无直接系数的纸张：有折扣打折扣，无折扣则原价
+    const discount = hasDirect ? 1 : (paper ? (paper.discount || 1) : 1);
+    const price = base * discount * coeff;
+    total += price;
+    const calcStr = discount !== 1
+      ? `¥${formatMoney(base)} × ${discount}（折扣）× ${coeff} = ¥${formatMoney(price)}`
+      : `¥${formatMoney(base)} × ${coeff} = ¥${formatMoney(price)}`;
+    rows.push({
+      name: sd.paperName,
+      display: calcStr,
+      tag: !hasDirect ? "无直接系数" : ""
+    });
+  });
+  els.tempCoeffResults.innerHTML = `
+    <div class="price-card custom-coeff temp-result-card">
+      <span class="coeff-badge">临时</span>
+      <div class="level-name">临时报价结果</div>
+      <div class="direct-detail-list">
+        ${rows.map(r => `
+          <div class="direct-detail-row">
+            <span class="dd-name">${escapeHtml(r.name)}</span>
+            <span class="dd-calc">${r.display}</span>
+            ${r.tag ? `<span class="dd-tag">${r.tag}</span>` : ''}
+          </div>
+        `).join("")}
+        <div class="direct-detail-row">
+          <span class="dd-name">工艺</span>
+          <span class="dd-calc">¥${formatMoney(craftTotal)}</span>
+        </div>
+      </div>
+      <div class="level-price">${incomplete
+        ? '<span class="price-missing">部分缺价</span>'
+        : formatMoney(total) + '<span class="unit">元</span>'}</div>
+    </div>
+  `;
+  els.tempCoeffResults.style.display = "flex";
 }
 
 /**
@@ -1211,6 +1391,8 @@ function clearResult() {
   _lastResult = null;
   if (els.customCoeffBar) els.customCoeffBar.style.display = "none";
   if (els.customPriceCard) { els.customPriceCard.style.display = "none"; els.customPriceCard.innerHTML = ""; }
+  if (els.tempCoeffBar) els.tempCoeffBar.style.display = "none";
+  if (els.tempCoeffResults) { els.tempCoeffResults.style.display = "none"; els.tempCoeffResults.innerHTML = ""; }
   if (els.shippingOverrideBar) els.shippingOverrideBar.style.display = "none";
   if (els.shippingOverrideInput) els.shippingOverrideInput.value = "";
   if (els.shippingOverrideLabel) els.shippingOverrideLabel.style.display = "none";

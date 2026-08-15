@@ -6,8 +6,8 @@
   <meta name="googlebot" content="noindex, nofollow">
   <!-- P0 安全：CSP 策略 -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' cdn.sheetjs.com 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';">
-  <title>KOKALabel报价系统 v6.7</title>
-  <link rel="stylesheet" href="css/style.css?v=6.7">
+  <title>KOKALabel报价系统 v6.8</title>
+  <link rel="stylesheet" href="css/style.css?v=6.8">
 </head>
 <body>
   <!-- 顶部导航 -->
@@ -485,6 +485,14 @@
           </div>
           <div id="customPriceCard" class="price-cards" style="display:none;"></div>
 
+          <!-- v6.8：临时直接系数（每纸独立，直接系数模式显示） -->
+          <div id="tempCoeffBar" class="custom-coeff-bar temp-coeff-bar" style="display:none;">
+            <span class="custom-coeff-label">临时直接系数：</span>
+            <div id="tempCoeffInputs" class="temp-coeff-inputs"></div>
+            <span class="custom-coeff-hint">（每张纸独立设置，实时显示临时报价）</span>
+          </div>
+          <div id="tempCoeffResults" class="price-cards" style="display:none;"></div>
+
           <!-- 邮费快速修改 -->
           <div id="shippingOverrideBar" class="shipping-override-bar" style="display:none;">
             <span class="shipping-override-label">邮费快速修改：</span>
@@ -901,7 +909,7 @@
         <div class="setting-row">
           <div class="setting-info">
             <div class="setting-label">当前版本</div>
-            <div class="setting-desc">KOKALabel报价系统 v6.7</div>
+            <div class="setting-desc">KOKALabel报价系统 v6.8</div>
           </div>
           <div class="setting-control">
             <span class="placeholder-badge">正式版</span>
@@ -936,6 +944,6 @@
 
   <!-- P1.4: SheetJS defer 备用加载（不阻塞渲染），app.js 中 loadSheetJS() 为按需加载兜底 -->
   <script defer src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-  <script src="js/data.js?v=6.7"></script>
-  <script src="js/app.js?v=6.7"></script>
+  <script src="js/data.js?v=6.8"></script>
+  <script src="js/app.js?v=6.8"></script>
 </body></html>
