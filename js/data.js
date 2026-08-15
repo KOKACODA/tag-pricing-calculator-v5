@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v6.9 - 数据配置层
+// KOKALabel报价系统 v6.10 - 数据配置层
 // ============================================================
 "use strict";
 
@@ -124,7 +124,7 @@ const DEFAULT_PAPER_CONFIG = [
       },
       {
         "code": "055",
-        "maxArea": 5684,
+        "maxArea": 5500,
         "prices": {
           "500": 40,
           "1000": 45,
@@ -277,7 +277,7 @@ const DEFAULT_PAPER_CONFIG = [
       },
       {
         "code": "055",
-        "maxArea": 5684,
+        "maxArea": 5500,
         "prices": {
           "1000": 55,
           "2000": 90,
@@ -422,7 +422,7 @@ const DEFAULT_PAPER_CONFIG = [
       },
       {
         "code": "055",
-        "maxArea": 5684,
+        "maxArea": 5500,
         "prices": {
           "1000": 65,
           "2000": 105,
@@ -571,7 +571,7 @@ const DEFAULT_PAPER_CONFIG = [
       },
       {
         "code": "055",
-        "maxArea": 5684,
+        "maxArea": 5500,
         "prices": {
           "500": 65,
           "1000": 75,
@@ -744,7 +744,7 @@ const DEFAULT_PAPER_CONFIG = [
       },
       {
         "code": "055",
-        "maxArea": 5684,
+        "maxArea": 5500,
         "prices": {
           "500": 55,
           "1000": 65,
@@ -905,7 +905,7 @@ const DEFAULT_PAPER_CONFIG = [
       },
       {
         "code": "055",
-        "maxArea": 5684,
+        "maxArea": 5500,
         "prices": {
           "1000": 75,
           "2000": 135,
@@ -1044,7 +1044,7 @@ const DEFAULT_PAPER_CONFIG = [
       },
       {
         "code": "055",
-        "maxArea": 5684,
+        "maxArea": 5500,
         "prices": {
           "1000": 66,
           "2000": 115,
@@ -1187,7 +1187,7 @@ const DEFAULT_PAPER_CONFIG = [
       },
       {
         "code": "055",
-        "maxArea": 5684,
+        "maxArea": 5500,
         "prices": {
           "1000": 105,
           "2000": 190,
@@ -1322,7 +1322,7 @@ const DEFAULT_PAPER_CONFIG = [
       },
       {
         "code": "055",
-        "maxArea": 5684,
+        "maxArea": 5500,
         "prices": {
           "1000": 130,
           "2000": 235,
@@ -1459,7 +1459,7 @@ const DEFAULT_PAPER_CONFIG = [
       },
       {
         "code": "055",
-        "maxArea": 5684,
+        "maxArea": 5500,
         "prices": {
           "1000": 75,
           "2000": 115,
