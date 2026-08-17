@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v6.11 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v6.12 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -273,11 +273,10 @@ function calculate(inputs) {
     const baseOriginalPrice = hasExactTier(spec.prices, tier)
       ? Number(spec.prices[tier])
       : null;
-    // v6.5：标准报价模式纸张乘 discount（打折），直接系数模式纸张用原价（不打折）
-    // 折扣只在标准报价触发：纸张原价 × paper.discount = 折后价，再 × 客户等级系数 = 最终报价
-    // 直接系数模式：纸张原价（不打折），× 直接系数（或客户等级系数回退）= 最终报价
+    // v6.12：直接系数模式：有直接系数的纸张用原价（不打折），无直接系数的纸张按折扣价（原价 × discount）
+    // 标准报价模式：纸张乘 discount（打折），再 × 客户等级系数 = 最终报价
     const baseUnitPrice = hasExactTier(spec.prices, tier)
-      ? Number(spec.prices[tier]) * (isDirect ? 1 : paper.discount)
+      ? Number(spec.prices[tier]) * (isDirect ? (paperHasDirectCoeff(paper) ? 1 : paper.discount) : paper.discount)
       : null;
     // 纸张最终价（乘面积系数后）
     const paperOriginalPrice = baseOriginalPrice != null ? baseOriginalPrice * areaCoeff : null;
@@ -373,7 +372,7 @@ function calculate(inputs) {
   // 报价系数：直接系数模式每张纸独立系数（各等级分别计算），标准模式用 CUSTOMER_LEVELS 统一系数
   let pricesByLevel;
   if (isDirect) {
-    // v6.8：每张纸按各自 Sheet 直接系数计算，无直接系数的纸张回退到客户等级系数
+    // v6.12：每张纸按各自 Sheet 直接系数计算；无直接系数的纸张不乘系数，按折扣价（原价 × discount）计入
     // 工艺费用不乘系数，直接累加（防止多纸张混合时工艺计算错误）
     pricesByLevel = DIRECT_COEFF_LEVELS.map((level, li) => {
       const paperDetails = sheetDetails.map(sd => {
@@ -387,17 +386,22 @@ function calculate(inputs) {
             hasDirectCoeff = true;
           }
         }
+        let contributedPrice = null;
         if (coeff == null) {
-          const cl = CUSTOMER_LEVELS[li];
-          coeff = cl ? cl.coefficient : 1;
+          // v6.12：无直接系数 → 不乘系数，unitPrice 已是折扣价（原价 × discount）
+          coeff = 1;
+          contributedPrice = sd.unitPrice != null ? sd.unitPrice : null;
+        } else {
+          contributedPrice = sd.unitPrice != null ? sd.unitPrice * coeff : null;
         }
-        const contributedPrice = sd.unitPrice != null ? sd.unitPrice * coeff : null;
         return {
           paperId: sd.paperId,
           paperName: sd.paperName,
           unitPrice: sd.unitPrice,
+          originalUnitPrice: sd.originalUnitPrice,
           coefficient: coeff,
           hasDirectCoeff,
+          discount: paper && paper.discount != null ? paper.discount : 1,
           contributedPrice
         };
       });
@@ -1089,7 +1093,8 @@ function onCalculate() {
   if (calcMode === "direct") {
     // v6.8：明细卡片，每张纸单独乘系数后累加，工艺直接累加
     els.priceCards.innerHTML = result.pricesByLevel.map((item, idx) => {
-      const coeffs = item.paperDetails.map(p => p.coefficient).filter(v => v != null);
+      // v6.12：徽章只统计有直接系数的纸张，无直接系数纸张不参与系数范围
+      const coeffs = item.paperDetails.filter(p => p.hasDirectCoeff).map(p => p.coefficient).filter(v => v != null);
       const badge = coeffs.length === 1
         ? `×${coeffs[0]}`
         : (coeffs.length > 1 ? `×${Math.min(...coeffs)}-${Math.max(...coeffs)}` : "");
@@ -1102,7 +1107,11 @@ function onCalculate() {
             <div class="direct-detail-row">
               <span class="dd-name">${escapeHtml(p.paperName)}</span>
               <span class="dd-calc">${p.contributedPrice != null
-                ? `¥${formatMoney(p.unitPrice)} × ${p.coefficient} = ¥${formatMoney(p.contributedPrice)}`
+                ? (!p.hasDirectCoeff && p.discount !== 1)
+                  ? `¥${formatMoney(p.originalUnitPrice)} × ${p.discount}（折扣） = ¥${formatMoney(p.contributedPrice)}`
+                  : (p.hasDirectCoeff)
+                  ? `¥${formatMoney(p.originalUnitPrice)} × ${p.coefficient} = ¥${formatMoney(p.contributedPrice)}`
+                  : `¥${formatMoney(p.contributedPrice)}`
                 : '<span class="price-missing">缺价</span>'}</span>
               ${!p.hasDirectCoeff ? '<span class="dd-tag">无直接系数</span>' : ''}
             </div>
@@ -1284,9 +1293,19 @@ function renderTempCoeffResults() {
     const discount = hasDirect ? 1 : (paper ? (paper.discount || 1) : 1);
     const price = base * discount * coeff;
     total += price;
-    const calcStr = discount !== 1
-      ? `¥${formatMoney(base)} × ${discount}（折扣）× ${coeff} = ¥${formatMoney(price)}`
-      : `¥${formatMoney(base)} × ${coeff} = ¥${formatMoney(price)}`;
+    // v6.12：无直接系数且系数为 1 时不显示冗余的 ×1
+    let calcStr;
+    if (!hasDirect && coeff === 1) {
+      calcStr = discount !== 1
+        ? `¥${formatMoney(base)} × ${discount}（折扣） = ¥${formatMoney(price)}`
+        : `¥${formatMoney(price)}`;
+    } else if (!hasDirect) {
+      calcStr = discount !== 1
+        ? `¥${formatMoney(base)} × ${discount}（折扣）× ${coeff} = ¥${formatMoney(price)}`
+        : `¥${formatMoney(base)} × ${coeff} = ¥${formatMoney(price)}`;
+    } else {
+      calcStr = `¥${formatMoney(base)} × ${coeff} = ¥${formatMoney(price)}`;
+    }
     rows.push({
       name: sd.paperName,
       display: calcStr,
