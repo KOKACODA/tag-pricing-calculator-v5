@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v6.13 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v6.14 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -78,7 +78,7 @@ function formatMoney(value) {
   return value.toFixed(parseDecimalPlaces(APP_PROFILE.decimalPlaces));
 }
 
-// v6.13：整数价格去尾零显示（如 90 → "90"，90.5 → "90.50"），用于折后价合计的计算过程展示
+// v6.14：整数价格去尾零显示（如 90 → "90"，90.5 → "90.50"），用于折后价合计的计算过程展示
 function formatPriceRaw(value) {
   const n = Number(value);
   if (typeof n !== "number" || isNaN(n)) return "-";
@@ -280,7 +280,7 @@ function calculate(inputs) {
     const baseOriginalPrice = hasExactTier(spec.prices, tier)
       ? Number(spec.prices[tier])
       : null;
-    // v6.13：直接系数模式：有直接系数的纸张用原价（不打折），无直接系数的纸张按折扣价（原价 × discount）
+    // v6.14：直接系数模式：有直接系数的纸张用原价（不打折），无直接系数的纸张按折扣价（原价 × discount）
     // 标准报价模式：纸张乘 discount（打折），再 × 客户等级系数 = 最终报价
     const baseUnitPrice = hasExactTier(spec.prices, tier)
       ? Number(spec.prices[tier]) * (isDirect ? (paperHasDirectCoeff(paper) ? 1 : paper.discount) : paper.discount)
@@ -380,7 +380,7 @@ function calculate(inputs) {
   // 报价系数：直接系数模式每张纸独立系数（各等级分别计算），标准模式用 CUSTOMER_LEVELS 统一系数
   let pricesByLevel;
   if (isDirect) {
-    // v6.13：每张纸按各自 Sheet 直接系数计算；无直接系数的纸张不乘系数，按折扣价（原价 × discount）计入
+    // v6.14：每张纸按各自 Sheet 直接系数计算；无直接系数的纸张不乘系数，按折扣价（原价 × discount）计入
     // 工艺费用不乘系数，直接累加（防止多纸张混合时工艺计算错误）
     pricesByLevel = DIRECT_COEFF_LEVELS.map((level, li) => {
       const paperDetails = sheetDetails.map(sd => {
@@ -396,7 +396,7 @@ function calculate(inputs) {
         }
         let contributedPrice = null;
         if (coeff == null) {
-          // v6.13：无直接系数 → 不乘系数，unitPrice 已是折扣价（原价 × discount）
+          // v6.14：无直接系数 → 不乘系数，unitPrice 已是折扣价（原价 × discount）
           coeff = 1;
           contributedPrice = sd.unitPrice != null ? sd.unitPrice : null;
         } else {
@@ -682,7 +682,7 @@ function renderSheets() {
 
     const triggerText = currentPaper ? (currentPaper.shortName || currentPaper.name) : "无可用纸张";
     const triggerDesc = currentPaper ? currentPaper.name : "请导入报价表";
-    // v6.13：无直接系数的纸张提示只在直接系数模式下显示（标准报价模式隐藏）
+    // v6.14：无直接系数的纸张提示只在直接系数模式下显示（标准报价模式隐藏）
     const noDirectCoeff = calcMode === "direct" && !paperHasDirectCoeff(currentPaper);
 
     card.innerHTML = `
@@ -1018,7 +1018,7 @@ function onCalculate() {
   els.resTier.textContent = result.tier + " 张";
   // 纸张价合计（折扣前）/ 纸张折后价合计：多纸张时显示 "¥价格1 + ¥价格2 = ¥合计"，合计蓝字
   // 当面积系数 > 1 时，每张纸显示 "¥基础价 × 系数" 格式
-  // v6.13：折后价合计行（showDiscountCalc=true）对有折扣的纸张显示 "¥原价 × 折扣" 计算过程
+  // v6.14：折后价合计行（showDiscountCalc=true）对有折扣的纸张显示 "¥原价 × 折扣" 计算过程
   function renderPaperTotal(getFinalPrice, getBasePrice, showDiscountCalc) {
     const details = result.sheetDetails;
     if (details.length === 1) {
@@ -1042,7 +1042,7 @@ function onCalculate() {
         const bp = getBasePrice(s);
         return '¥ ' + formatMoney(bp) + ' × ' + s.areaCoefficient;
       }
-      // v6.13：有折扣的纸张显示计算过程（原价 × 折扣）
+      // v6.14：有折扣的纸张显示计算过程（原价 × 折扣）
       if (showDiscountCalc && s.discount && s.discount !== 1) {
         return '¥ ' + formatPriceRaw(s.baseOriginalUnitPrice) + ' × ' + s.discount;
       }
@@ -1109,7 +1109,7 @@ function onCalculate() {
   if (calcMode === "direct") {
     // v6.8：明细卡片，每张纸单独乘系数后累加，工艺直接累加
     els.priceCards.innerHTML = result.pricesByLevel.map((item, idx) => {
-      // v6.13：徽章只统计有直接系数的纸张，无直接系数纸张不参与系数范围
+      // v6.14：徽章只统计有直接系数的纸张，无直接系数纸张不参与系数范围
       const coeffs = item.paperDetails.filter(p => p.hasDirectCoeff).map(p => p.coefficient).filter(v => v != null);
       const badge = coeffs.length === 1
         ? `×${coeffs[0]}`
@@ -1309,7 +1309,7 @@ function renderTempCoeffResults() {
     const discount = hasDirect ? 1 : (paper ? (paper.discount || 1) : 1);
     const price = base * discount * coeff;
     total += price;
-    // v6.13：无直接系数且系数为 1 时不显示冗余的 ×1
+    // v6.14：无直接系数且系数为 1 时不显示冗余的 ×1
     let calcStr;
     if (!hasDirect && coeff === 1) {
       calcStr = discount !== 1
@@ -1686,7 +1686,7 @@ function switchCalcMode(mode) {
     if (ropeGroup) ropeGroup.style.display = "";
     if (regionGroup) regionGroup.style.display = "";
   }
-  // v6.13：重新渲染纸张卡片，刷新无直接系数提示（标准报价模式隐藏提示）
+  // v6.14：重新渲染纸张卡片，刷新无直接系数提示（标准报价模式隐藏提示）
   renderSheets();
   onCalculate();
 }

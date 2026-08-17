@@ -1,4 +1,4 @@
-/* KOKALabel报价系统 v6.13 - 样式表 */
+/* KOKALabel报价系统 v6.14 - 样式表 */
 
 /* ===================== 全局变量与重置 ===================== */
     :root {
@@ -511,7 +511,7 @@
       font-weight: 600;
       font-size: 15px;
       color: var(--text);
-      /* v6.13：长内容自动换行，防止溢出框体 */
+      /* v6.14：长内容自动换行，防止溢出框体 */
       flex: 1;
       min-width: 0;
       text-align: right;
@@ -628,7 +628,7 @@
 
     .sheet-result-table td {
       color: var(--text);
-      /* v6.13：长内容自动换行，防止溢出框体 */
+      /* v6.14：长内容自动换行，防止溢出框体 */
       overflow-wrap: break-word;
       word-break: break-all;
       white-space: normal;
@@ -723,6 +723,10 @@
       border: 2px solid var(--border);
       border-radius: var(--radius);
       position: relative;
+      /* v6.14：防止内容溢出卡片 */
+      min-width: 0;
+      overflow-wrap: break-word;
+      word-break: break-all;
     }
 
     /* 直接系数徽章（右上角） */
@@ -889,11 +893,18 @@
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 4px 8px;
+      /* v6.14：防止长名称溢出 */
+      max-width: 100%;
+      min-width: 0;
     }
     .temp-coeff-item .temp-coeff-name {
       font-size: 12px;
       color: var(--text-secondary);
       white-space: nowrap;
+      /* v6.14：长名称省略号 */
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 140px;
     }
     .temp-coeff-item .temp-coeff-input {
       width: 70px;
@@ -933,26 +944,33 @@
       border-top: 1px dashed var(--border);
       border-bottom: 1px dashed var(--border);
     }
+    /* v6.14：明细行改为纵向排列，名称/计算式/标签各自换行，卡片竖向延长避免溢出 */
     .direct-detail-row {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
       font-size: 12px;
-      padding: 2px 0;
+      padding: 3px 0;
       line-height: 1.5;
+      min-width: 0;
+      overflow-wrap: break-word;
+      word-break: break-all;
     }
     .direct-detail-row .dd-name {
       color: var(--text-secondary);
-      white-space: nowrap;
+      white-space: normal;
       min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      overflow-wrap: break-word;
+      word-break: break-all;
     }
     .direct-detail-row .dd-calc {
       color: var(--text);
       font-variant-numeric: tabular-nums;
-      white-space: nowrap;
+      white-space: normal;
+      min-width: 0;
+      overflow-wrap: break-word;
+      word-break: break-all;
     }
     .direct-detail-row .dd-tag {
       font-size: 10px;
@@ -966,6 +984,8 @@
     .direct-detail-card .level-price {
       font-size: 18px;
       text-align: center;
+      overflow-wrap: break-word;
+      word-break: break-all;
     }
 
     /* ===================== 邮费快速修改 ===================== */
