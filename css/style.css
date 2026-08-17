@@ -511,6 +511,13 @@
       font-weight: 600;
       font-size: 15px;
       color: var(--text);
+      /* v6.13：长内容自动换行，防止溢出框体 */
+      flex: 1;
+      min-width: 0;
+      text-align: right;
+      overflow-wrap: break-word;
+      word-break: break-all;
+      line-height: 1.5;
     }
 
     .result-warnings {
@@ -621,6 +628,10 @@
 
     .sheet-result-table td {
       color: var(--text);
+      /* v6.13：长内容自动换行，防止溢出框体 */
+      overflow-wrap: break-word;
+      word-break: break-all;
+      white-space: normal;
     }
     .sheet-result-table td.col-area,
     .sheet-result-table td.col-code {
@@ -1641,7 +1652,10 @@
     .result-value {
       font-size: clamp(0.8125rem, 3.5vw, 0.9375rem);
       overflow-wrap: break-word;
+      word-break: break-all;
       text-align: right;
+      flex: 1;
+      min-width: 0;
     }
     .result-warnings {
       padding: clamp(0.625rem, 3vw, 0.75rem) clamp(0.75rem, 3vw, 0.875rem);
