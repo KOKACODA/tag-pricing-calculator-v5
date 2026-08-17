@@ -6,11 +6,11 @@
   <meta name="googlebot" content="noindex, nofollow">
   <!-- P0 安全：CSP 策略 -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' cdn.sheetjs.com 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';">
-  <title>KOKALabel报价系统 v7.1</title>
-  <link rel="icon" type="image/x-icon" href="favicon.ico?v=7.1">
-  <link rel="icon" type="image/png" href="favicon.png?v=7.1">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=7.1">
-  <link rel="stylesheet" href="css/style.css?v=7.1">
+  <title>KOKALabel报价系统 v7.2</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico?v=7.2">
+  <link rel="icon" type="image/png" href="favicon.png?v=7.2">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=7.2">
+  <link rel="stylesheet" href="css/style.css?v=7.2">
 </head>
 <body>
   <!-- 顶部导航 -->
@@ -606,19 +606,20 @@
 
     <!-- 页面3：个人主页 -->
     <section class="page" id="page-profile">
-      <div class="card">
-        <div class="profile-header">
-          <div class="avatar">海</div>
-          <div class="profile-meta">
-            <h3>KOKALabel <span class="placeholder-badge">占位 UI</span></h3>
-            <p>管理员 · 本地配置 · 下次打开保留</p>
-          </div>
+      <div class="profile-hero">
+        <div class="avatar">海</div>
+        <div class="profile-meta">
+          <h3>KOKALabel <span class="placeholder-badge">占位 UI</span></h3>
+          <p>管理员 · 本地配置 · 下次打开保留</p>
         </div>
       </div>
 
       <div class="card">
-        <h2 class="card-title">客户建议价格 · 毛利系数</h2>
-        <div id="levelSettings">
+        <h2 class="card-title">报价设置</h2>
+
+        <div class="profile-section">
+          <h3 class="section-title">客户建议价格 · 毛利系数</h3>
+          <div id="levelSettings">
         <div class="level-editor" data-level-id="level1">
           <input type="text" class="level-name" value="普通客户" placeholder="等级名称">
           <input type="number" class="level-coefficient" value="1.2" min="1" step="0.01">
@@ -640,59 +641,103 @@
           <button class="btn danger sm" data-action="remove-level" data-index="2">删除</button>
         </div>
       </div>
-        <div class="setting-row" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
-          <div class="setting-info">
-            <div class="setting-label">报价小数位数</div>
-            <div class="setting-desc">所有金额显示保留几位小数（修改后立即生效）</div>
-          </div>
-          <div class="setting-control">
-            <input type="number" id="decimalPlaces" min="0" max="4" value="2">
+          <div class="btn-group">
+            <button class="btn secondary sm" id="addLevelBtn">+ 新增等级</button>
+            <button class="btn secondary sm" id="resetLevelBtn">恢复默认</button>
           </div>
         </div>
+
+        <div class="profile-section">
+          <h3 class="section-title">金额显示</h3>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">报价小数位数</div>
+              <div class="setting-desc">所有金额显示保留几位小数（修改后立即生效）</div>
+            </div>
+            <div class="setting-control">
+              <input type="number" id="decimalPlaces" min="0" max="4" value="2">
+            </div>
+          </div>
+        </div>
+
+        <div class="profile-section">
+          <h3 class="section-title">公司信息与报价单</h3>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">公司名称</div>
+              <div class="setting-desc">显示在报价单顶部</div>
+            </div>
+            <div class="setting-control">
+              <input type="text" id="companyName" placeholder="KOKALabel">
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">联系电话</div>
+              <div class="setting-desc">客户回拨用</div>
+            </div>
+            <div class="setting-control">
+              <input type="text" id="companyPhone" placeholder="待填写">
+            </div>
+          </div>
+        </div>
+
+        <div class="profile-section">
+          <h3 class="section-title">默认选项</h3>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">默认批量档位</div>
+              <div class="setting-desc">打开计算器时的默认选项</div>
+            </div>
+            <div class="setting-control">
+              <select id="defaultTier"><option value="">跟随纸张</option><option value="500">500 张</option><option value="1000">1000 张</option><option value="2000">2000 张</option><option value="2500">2500 张</option><option value="5000">5000 张</option><option value="10000">10000 张</option><option value="20000">20000 张</option><option value="50000">50000 张</option></select>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">默认吊绳类型</div>
+              <div class="setting-desc">打开计算器时吊绳单选默认选中</div>
+            </div>
+            <div class="setting-control">
+              <select id="defaultRope"><option value="">跟随默认（普通吊绳）</option><option value="rope0">不加吊绳</option><option value="rope1">普通吊绳</option><option value="rope2">黑色方头</option><option value="rope3">白色方头</option><option value="rope4">加长加粗子弹头</option><option value="rope5">金色别针</option><option value="rope6">米色棉绳</option><option value="rope7">白色蜡绳</option><option value="rope8">黑色蜡绳</option><option value="rope9">黑色别针</option><option value="rope10">黑双插圆柱蜡绳</option><option value="rope11">白双插圆柱蜡绳</option><option value="rope12">白色双插丝带</option><option value="rope13">黑色双插丝带</option><option value="rope14">紫色双插涤纶</option><option value="rope15">粉色双插涤纶</option><option value="rope16">黑色双插涤纶</option><option value="rope17">白色双插涤纶</option><option value="rope18">白色单插蜡绳</option><option value="rope19">黑色单插蜡绳</option><option value="rope20">黑色双插蜡绳</option><option value="rope21">白色双插蜡绳</option><option value="rope22">防拆条</option><option value="rope23">空白防拆条</option><option value="rope24">棉带防拆条</option><option value="rope25">黑色光胶防拆条</option><option value="rope26">防拆扣</option></select>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">默认纸张材质</div>
+              <div class="setting-desc">打开计算器时默认显示的1号报价表</div>
+            </div>
+            <div class="setting-control">
+              <select id="defaultPaper"><option value="">跟随默认（1号报价表-3）</option><option value="paper1">350铜版纸</option><option value="paper2">400铜版纸</option><option value="paper3">702铜版纸</option><option value="paper4">606米白卡</option><option value="paper5">500白卡纸</option><option value="paper6">海成专用</option><option value="paper7">700布纹纸</option><option value="paper8">600牛皮纸</option><option value="paper9">40C棉麻布</option></select>
+            </div>
+          </div>
+        </div>
+
         <div class="btn-group">
-          <button class="btn secondary sm" id="addLevelBtn">+ 新增等级</button>
-          <button class="btn secondary sm" id="resetLevelBtn">恢复默认</button>
+          <button class="btn sm" id="saveProfileBtn">保存设置</button>
+          <button class="btn secondary sm" id="exportProfileBtn">导出配置</button>
         </div>
       </div>
 
       <div class="card">
-        <h2 class="card-title">直接系数说明</h2>
-        <div class="setting-row" style="display:block;">
-          <div class="setting-info" style="margin-bottom:12px;">
-            <div class="setting-label">直接系数从哪里来？</div>
-            <div class="setting-desc">直接系数只读取报价表（Excel）每个 Sheet 的「直接系数档位 / 最高倍数 / 最低倍数」三行数据，不再支持在个人主页全局设置。修改直接系数请直接编辑报价表后重新导入。</div>
+        <h2 class="card-title">计算规则说明</h2>
+        <details class="rule-block" open>
+          <summary>直接系数</summary>
+          <div class="rule-content">
+            <p>直接系数只读取报价表（Excel）每个 Sheet 的「直接系数档位 / 最高倍数 / 最低倍数」三行数据，不再支持在个人主页全局设置。修改直接系数请直接编辑报价表后重新导入。</p>
+            <p><strong>有直接系数的纸张：</strong>按表格档位计算直接系数（最高倍数→普通客户，最低倍数→大客户，中间等级等差插值），不再计算纸张折扣。</p>
+            <p><strong>无直接系数的纸张：</strong>按标准报价计算（乘折扣系数），使用客户建议价格 · 毛利系数。</p>
           </div>
-          <div class="setting-info" style="margin-bottom:12px;">
-            <div class="setting-label">有直接系数的纸张</div>
-            <div class="setting-desc">按表格档位计算直接系数（最高倍数→普通客户，最低倍数→大客户，中间等级等差插值），不再计算纸张折扣。</div>
+        </details>
+        <details class="rule-block">
+          <summary>面积系数</summary>
+          <div class="rule-content">
+            <p>当计算面积（含出血后的面积）超过 10000mm² 时，系统会自动使用最大规格（10000mm²）的价格作为基础价，并乘以面积系数来计算最终价格。</p>
+            <p><strong>面积系数如何计算：</strong>面积系数 = 计算面积 ÷ 10000，四舍五入保留两位小数。举例：计算面积为 10289mm²，系数 = 10289 ÷ 10000 = 1.03；计算面积为 34289mm²，系数 = 34289 ÷ 10000 = 3.43。</p>
+            <p><strong>价格如何计算：</strong>最终纸张价 = 基础价（10000mm² 规格价格）× 面积系数。举例：350克铜版纸 500 张，基础价 ¥80，面积系数 1.03，则最终价 = 80 × 1.03 = ¥82.4。</p>
+            <p><strong>报价结果中的显示：</strong>当触发面积系数时，报价结果区域会显示面积系数提示行，同时纸张价格合计行会以「¥ 基础价 × 系数 = ¥ 最终价」的格式显示。面积未超过 10000mm² 时不显示面积系数，按正常价格计算。</p>
           </div>
-          <div class="setting-info">
-            <div class="setting-label">无直接系数的纸张</div>
-            <div class="setting-desc">按标准报价计算（乘折扣系数），使用客户建议价格 · 毛利系数。</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2 class="card-title">面积系数说明</h2>
-        <div class="setting-row" style="display:block;">
-          <div class="setting-info" style="margin-bottom:12px;">
-            <div class="setting-label">什么是面积系数？</div>
-            <div class="setting-desc">当计算面积（含出血后的面积）超过 10000mm² 时，系统会自动使用最大规格（10000mm²）的价格作为基础价，并乘以面积系数来计算最终价格。</div>
-          </div>
-          <div class="setting-info" style="margin-bottom:12px;">
-            <div class="setting-label">面积系数如何计算？</div>
-            <div class="setting-desc">面积系数 = 计算面积 ÷ 10000，四舍五入保留两位小数。<br>举例：计算面积为 10289mm²，系数 = 10289 ÷ 10000 = 1.03；计算面积为 34289mm²，系数 = 34289 ÷ 10000 = 3.43。</div>
-          </div>
-          <div class="setting-info" style="margin-bottom:12px;">
-            <div class="setting-label">价格如何计算？</div>
-            <div class="setting-desc">最终纸张价 = 基础价（10000mm² 规格价格）× 面积系数。<br>举例：350克铜版纸 500 张，基础价 ¥80，面积系数 1.03，则最终价 = 80 × 1.03 = ¥82.4。</div>
-          </div>
-          <div class="setting-info">
-            <div class="setting-label">报价结果中的显示</div>
-            <div class="setting-desc">当触发面积系数时，报价结果区域会显示面积系数提示行，同时纸张价格合计行会以「¥ 基础价 × 系数 = ¥ 最终价」的格式显示。面积未超过 10000mm² 时不显示面积系数，按正常价格计算。</div>
-          </div>
-        </div>
+        </details>
       </div>
 
       <div class="card">
@@ -822,60 +867,7 @@
       </div>
 
       <div class="card">
-        <h2 class="card-title">公司信息与报价单设置</h2>
-        <div class="setting-row">
-          <div class="setting-info">
-            <div class="setting-label">公司名称</div>
-            <div class="setting-desc">显示在报价单顶部</div>
-          </div>
-          <div class="setting-control">
-            <input type="text" id="companyName" placeholder="KOKALabel">
-          </div>
-        </div>
-        <div class="setting-row">
-          <div class="setting-info">
-            <div class="setting-label">联系电话</div>
-            <div class="setting-desc">客户回拨用</div>
-          </div>
-          <div class="setting-control">
-            <input type="text" id="companyPhone" placeholder="待填写">
-          </div>
-        </div>
-        <div class="setting-row">
-          <div class="setting-info">
-            <div class="setting-label">默认批量档位</div>
-            <div class="setting-desc">打开计算器时的默认选项</div>
-          </div>
-          <div class="setting-control">
-            <select id="defaultTier"><option value="">跟随纸张</option><option value="500">500 张</option><option value="1000">1000 张</option><option value="2000">2000 张</option><option value="2500">2500 张</option><option value="5000">5000 张</option><option value="10000">10000 张</option><option value="20000">20000 张</option><option value="50000">50000 张</option></select>
-          </div>
-        </div>
-        <div class="setting-row">
-          <div class="setting-info">
-            <div class="setting-label">默认吊绳类型</div>
-            <div class="setting-desc">打开计算器时吊绳单选默认选中</div>
-          </div>
-          <div class="setting-control">
-            <select id="defaultRope"><option value="">跟随默认（普通吊绳）</option><option value="rope0">不加吊绳</option><option value="rope1">普通吊绳</option><option value="rope2">黑色方头</option><option value="rope3">白色方头</option><option value="rope4">加长加粗子弹头</option><option value="rope5">金色别针</option><option value="rope6">米色棉绳</option><option value="rope7">白色蜡绳</option><option value="rope8">黑色蜡绳</option><option value="rope9">黑色别针</option><option value="rope10">黑双插圆柱蜡绳</option><option value="rope11">白双插圆柱蜡绳</option><option value="rope12">白色双插丝带</option><option value="rope13">黑色双插丝带</option><option value="rope14">紫色双插涤纶</option><option value="rope15">粉色双插涤纶</option><option value="rope16">黑色双插涤纶</option><option value="rope17">白色双插涤纶</option><option value="rope18">白色单插蜡绳</option><option value="rope19">黑色单插蜡绳</option><option value="rope20">黑色双插蜡绳</option><option value="rope21">白色双插蜡绳</option><option value="rope22">防拆条</option><option value="rope23">空白防拆条</option><option value="rope24">棉带防拆条</option><option value="rope25">黑色光胶防拆条</option><option value="rope26">防拆扣</option></select>
-          </div>
-        </div>
-        <div class="setting-row">
-          <div class="setting-info">
-            <div class="setting-label">默认纸张材质</div>
-            <div class="setting-desc">打开计算器时默认显示的1号报价表</div>
-          </div>
-          <div class="setting-control">
-            <select id="defaultPaper"><option value="">跟随默认（1号报价表-3）</option><option value="paper1">350铜版纸</option><option value="paper2">400铜版纸</option><option value="paper3">702铜版纸</option><option value="paper4">606米白卡</option><option value="paper5">500白卡纸</option><option value="paper6">海成专用</option><option value="paper7">700布纹纸</option><option value="paper8">600牛皮纸</option><option value="paper9">40C棉麻布</option></select>
-          </div>
-        </div>
-        <div class="btn-group">
-          <button class="btn sm" id="saveProfileBtn">保存设置</button>
-          <button class="btn secondary sm" id="exportProfileBtn">导出配置</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2 class="card-title">更多 <span class="placeholder-badge">占位 UI</span></h2>
+        <h2 class="card-title">更多功能</h2>
         <div class="feature-grid">
           <div class="feature-card" onclick="showToast('客户管理功能占位')">
             <div class="feature-icon">🧑</div>
@@ -908,6 +900,35 @@
             <div class="feature-desc">主题、语言、通知、缓存清理</div>
           </div>
         </div>
+        <div class="profile-section" style="margin-top:20px;border-top:1px solid var(--border);padding-top:20px;">
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">当前版本</div>
+              <div class="setting-desc">KOKALabel报价系统 v7.2</div>
+            </div>
+            <div class="setting-control">
+              <span class="placeholder-badge">正式版</span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">数据存储</div>
+              <div class="setting-desc">当前使用浏览器 localStorage，后续迁移至数据库</div>
+            </div>
+            <div class="setting-control">
+              <span class="placeholder-badge">本地</span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">测试阶段提示</div>
+              <div class="setting-desc">当前为测试阶段，页面已屏蔽搜索引擎收录。后续将开放公开访问，届时移除 noindex 标签即可。</div>
+            </div>
+            <div class="setting-control">
+              <span class="placeholder-badge" style="background:var(--brand);color:#fff;">测试中</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="card" style="border: 2px solid var(--danger-border); background: var(--danger-light);">
@@ -922,37 +943,6 @@
           </div>
         </div>
       </div>
-
-      <div class="card">
-        <h2 class="card-title">关于与版本</h2>
-        <div class="setting-row">
-          <div class="setting-info">
-            <div class="setting-label">当前版本</div>
-            <div class="setting-desc">KOKALabel报价系统 v7.1</div>
-          </div>
-          <div class="setting-control">
-            <span class="placeholder-badge">正式版</span>
-          </div>
-        </div>
-        <div class="setting-row">
-          <div class="setting-info">
-            <div class="setting-label">数据存储</div>
-            <div class="setting-desc">当前使用浏览器 localStorage，后续迁移至数据库</div>
-          </div>
-          <div class="setting-control">
-            <span class="placeholder-badge">本地</span>
-          </div>
-        </div>
-        <div class="setting-row">
-          <div class="setting-info">
-            <div class="setting-label">测试阶段提示</div>
-            <div class="setting-desc">当前为测试阶段，页面已屏蔽搜索引擎收录。后续将开放公开访问，届时移除 noindex 标签即可。</div>
-          </div>
-          <div class="setting-control">
-            <span class="placeholder-badge" style="background:var(--accent,#0f6fc4);color:#fff;">测试中</span>
-          </div>
-        </div>
-      </div>
     </section>
 
     <!-- 页面4：数据管理 + 页面5：更多 已合并到 个人主页（page-profile）中 -->
@@ -963,6 +953,6 @@
 
   <!-- P1.4: SheetJS defer 备用加载（不阻塞渲染），app.js 中 loadSheetJS() 为按需加载兜底 -->
   <script defer src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-  <script src="js/data.js?v=7.1"></script>
-  <script src="js/app.js?v=7.1"></script>
+  <script src="js/data.js?v=7.2"></script>
+  <script src="js/app.js?v=7.2"></script>
 </body></html>

@@ -1,4 +1,4 @@
-/* KOKALabel报价系统 v7.1 - 样式表 */
+/* KOKALabel报价系统 v7.2 - 样式表 */
 
 /* ===================== 全局变量与重置 ===================== */
     :root {
@@ -1184,16 +1184,43 @@
       border: 1px solid var(--border);
     }
 
+    .profile-hero {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 24px 0 16px;
+      margin-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .profile-section {
+      padding: 18px 0 0;
+      margin-bottom: 4px;
+    }
+
+    .profile-section:not(:first-of-type) {
+      border-top: 1px solid var(--border);
+      margin-top: 6px;
+    }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin: 0 0 8px;
+    }
+
     .setting-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 14px 0;
-      border-bottom: 1px solid var(--border);
+      padding: 12px 0;
     }
 
-    .setting-row:last-child {
-      border-bottom: none;
+    .setting-row + .setting-row {
+      border-top: 1px solid var(--border);
     }
 
     .setting-info {
@@ -1225,6 +1252,51 @@
 
     .setting-control input[type="text"] {
       width: 160px;
+    }
+
+    /* ===== 规则折叠块 ===== */
+    .rule-block {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 10px;
+      background: var(--brand-light);
+      overflow: hidden;
+    }
+
+    .rule-block summary {
+      padding: 12px 16px;
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--brand-dark);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .rule-block summary:hover {
+      background: rgba(15, 111, 196, 0.06);
+    }
+
+    .rule-block[open] summary {
+      border-bottom: 1px solid var(--border);
+    }
+
+    .rule-content {
+      padding: 12px 16px;
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--text-secondary);
+    }
+
+    .rule-content p {
+      margin-bottom: 8px;
+    }
+
+    .rule-content p:last-child {
+      margin-bottom: 0;
+    }
+
+    .rule-content strong {
+      color: var(--text);
     }
 
     .slider {
@@ -1441,13 +1513,6 @@
 
     .tab-panel.active {
       display: block;
-    }
-
-    .profile-header {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      margin-bottom: 20px;
     }
 
     .avatar {
@@ -1873,7 +1938,7 @@
     }
 
     /* 个人主页 */
-    .profile-header { gap: clamp(0.625rem, 3vw, 1rem); margin-bottom: clamp(0.875rem, 4vw, 1.25rem); }
+    .profile-hero { gap: clamp(0.625rem, 3vw, 1rem); padding: clamp(1rem, 4vw, 1.5rem) 0 clamp(0.75rem, 3vw, 1rem); }
     .avatar {
       width: clamp(2.75rem, 14vw, 4rem);
       height: clamp(2.75rem, 14vw, 4rem);
@@ -1936,7 +2001,7 @@
       .setting-control input[type="text"] { width: 100%; }
       .level-editor { flex-wrap: wrap; }
       .level-editor input[type="number"] { width: clamp(3.5rem, 20vw, 5rem); }
-      .profile-header { flex-direction: column; text-align: center; align-items: center; }
+      .profile-hero { flex-direction: column; text-align: center; align-items: center; }
       .feature-grid { grid-template-columns: 1fr; }
       .pagination { flex-wrap: wrap; gap: 0.5rem; justify-content: center; }
       .btn-group { flex-direction: column; }
