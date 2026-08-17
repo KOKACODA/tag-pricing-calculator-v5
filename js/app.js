@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v6.14 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v7.0 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -245,6 +245,9 @@ function calculate(inputs) {
   let paperTotal = 0;
   let paperOriginalTotal = 0; // 折扣前纸张价合计
   let craftTotal = 0;
+  // v7.0：批量直接报价累计（固定价，不打折、不乘系数）
+  let batchDirectTotal = 0;       // 批量直接报价纸张价合计
+  let batchDirectCraftTotal = 0;  // 批量直接报价纸张的工艺费用合计
   const warnings = [];
   const sheetDetails = [];
   // 是否有任一纸张/工艺在所选档位没有定价（用于显示"无该批量定价"占位）
@@ -273,28 +276,45 @@ function calculate(inputs) {
       return { error: spec.message };
     }
 
-    const areaCoeff = spec.areaCoefficient || 1;
+    // v7.0：批量直接报价判断
+    // 纸张配置了 batchDirect 且面积（出血后）在最大面积范围内 → 直接按批量报价
+    // 价格固定：不打折、不乘直接系数、不乘面积系数；工艺费用直接叠加
+    const bd = paper.batchDirect;
+    const isBatchDirect = !!(bd && bd.maxArea > 0 && singleArea <= bd.maxArea);
+    let batchDirectPrice = null;
+    if (isBatchDirect && hasExactTier(bd.prices, tier)) {
+      batchDirectPrice = Number(bd.prices[tier]);
+    }
+
+    const areaCoeff = isBatchDirect ? 1 : (spec.areaCoefficient || 1);
     if (areaCoeff > 1) hasAreaCoefficient = true;
 
     // 纸张基础价（未乘面积系数）
-    const baseOriginalPrice = hasExactTier(spec.prices, tier)
-      ? Number(spec.prices[tier])
-      : null;
+    // v7.0：批量直接报价 → 直接用批量报价价格（不打折、不乘系数）
+    const baseOriginalPrice = isBatchDirect
+      ? batchDirectPrice
+      : (hasExactTier(spec.prices, tier) ? Number(spec.prices[tier]) : null);
     // v6.14：直接系数模式：有直接系数的纸张用原价（不打折），无直接系数的纸张按折扣价（原价 × discount）
     // 标准报价模式：纸张乘 discount（打折），再 × 客户等级系数 = 最终报价
-    const baseUnitPrice = hasExactTier(spec.prices, tier)
-      ? Number(spec.prices[tier]) * (isDirect ? (paperHasDirectCoeff(paper) ? 1 : paper.discount) : paper.discount)
-      : null;
+    const baseUnitPrice = isBatchDirect
+      ? batchDirectPrice
+      : (hasExactTier(spec.prices, tier)
+        ? Number(spec.prices[tier]) * (isDirect ? (paperHasDirectCoeff(paper) ? 1 : paper.discount) : paper.discount)
+        : null);
     // 纸张最终价（乘面积系数后）
     const paperOriginalPrice = baseOriginalPrice != null ? baseOriginalPrice * areaCoeff : null;
     const paperUnitPrice = baseUnitPrice != null ? baseUnitPrice * areaCoeff : null;
 
     if (paperUnitPrice == null) {
       hasMissingTier = true;
-      warnings.push(`「${paper.shortName || paper.name}」无 ${tier} 张批量定价`);
+      warnings.push(`「${paper.shortName || paper.name}」${isBatchDirect ? "无 " + tier + " 张批量直接报价" : "无 " + tier + " 张批量定价"}`);
     } else {
-      paperTotal += paperUnitPrice;
-      paperOriginalTotal += paperOriginalPrice;
+      if (isBatchDirect) {
+        batchDirectTotal += paperUnitPrice;
+      } else {
+        paperTotal += paperUnitPrice;
+        paperOriginalTotal += paperOriginalPrice;
+      }
     }
 
     // 工艺费用：每个工艺独立检查档位，无值则跳过并提示
@@ -312,7 +332,12 @@ function calculate(inputs) {
           warnings.push(`「${paper.shortName || paper.name}」工艺「${craft.name}」无 ${tier} 张批量定价`);
           sheetCraftDetails.push({ id: craft.id, name: craft.name, price: null, missing: true });
         } else {
-          craftTotal += cPrice;
+          // v7.0：批量直接报价纸张的工艺费用单独累计（直接叠加，不乘任何系数）
+          if (isBatchDirect) {
+            batchDirectCraftTotal += cPrice;
+          } else {
+            craftTotal += cPrice;
+          }
           sheetCraftDetails.push({ id: craft.id, name: craft.name, price: cPrice, missing: false });
         }
       }
@@ -333,6 +358,9 @@ function calculate(inputs) {
       areaCoefficient: areaCoeff,
       discount: paper.discount != null ? paper.discount : 1,
       missing: paperUnitPrice == null,
+      // v7.0：批量直接报价标记
+      isBatchDirect,
+      batchDirectPrice,
       crafts: sheetCraftDetails
     });
   }
@@ -364,16 +392,17 @@ function calculate(inputs) {
   }
 
   // 成本合计：直接系数模式 = 纸张 + 工艺；标准模式 = 纸张 + 工艺 + 吊绳 + 邮费
+  // v7.0：增加批量直接报价合计（批量纸张价 + 批量纸张工艺费，直接叠加）
   let cost, costKnown, costIncomplete;
   if (isDirect) {
-    cost = paperTotal + craftTotal;
+    cost = paperTotal + craftTotal + batchDirectTotal + batchDirectCraftTotal;
     costKnown = true;
     costIncomplete = false;
   } else {
-    costKnown = [paperTotal, craftTotal, ropePrice, shippingPrice].every(v => v != null);
+    costKnown = [paperTotal, craftTotal, ropePrice, shippingPrice, batchDirectTotal, batchDirectCraftTotal].every(v => v != null);
     cost = costKnown
-      ? (paperTotal + craftTotal + ropePrice + shippingPrice)
-      : (paperTotal + craftTotal + (ropePrice || 0) + (shippingPrice || 0));
+      ? (paperTotal + craftTotal + ropePrice + shippingPrice + batchDirectTotal + batchDirectCraftTotal)
+      : (paperTotal + craftTotal + (ropePrice || 0) + (shippingPrice || 0) + batchDirectTotal + batchDirectCraftTotal);
     costIncomplete = !costKnown;
   }
 
@@ -382,9 +411,26 @@ function calculate(inputs) {
   if (isDirect) {
     // v6.14：每张纸按各自 Sheet 直接系数计算；无直接系数的纸张不乘系数，按折扣价（原价 × discount）计入
     // 工艺费用不乘系数，直接累加（防止多纸张混合时工艺计算错误）
+    // v7.0：批量直接报价纸张不参与系数计算，价格直接累加
     pricesByLevel = DIRECT_COEFF_LEVELS.map((level, li) => {
       const paperDetails = sheetDetails.map(sd => {
         const paper = getPapersByPriceList(CURRENT_PRICE_LIST_ID).find(p => p.id === sd.paperId);
+        if (sd.isBatchDirect) {
+          // v7.0：批量直接报价纸张 → 不乘系数，不参与系数计算，直接显示固定价格
+          // contributedPrice 置 0：价格由 batchDirectTotal 统一累加，避免重复计数
+          return {
+            paperId: sd.paperId,
+            paperName: sd.paperName,
+            unitPrice: sd.unitPrice,
+            originalUnitPrice: sd.originalUnitPrice,
+            coefficient: 1,
+            hasDirectCoeff: false,
+            isBatchDirect: true,
+            batchDirectPrice: sd.batchDirectPrice,
+            discount: paper && paper.discount != null ? paper.discount : 1,
+            contributedPrice: sd.unitPrice != null ? 0 : null
+          };
+        }
         let coeff = null;
         let hasDirectCoeff = false;
         if (paper && paperHasDirectCoeff(paper)) {
@@ -409,11 +455,14 @@ function calculate(inputs) {
           originalUnitPrice: sd.originalUnitPrice,
           coefficient: coeff,
           hasDirectCoeff,
+          isBatchDirect: false,
+          batchDirectPrice: null,
           discount: paper && paper.discount != null ? paper.discount : 1,
           contributedPrice
         };
       });
-      const total = paperDetails.reduce((sum, p) => sum + (p.contributedPrice != null ? p.contributedPrice : 0), 0) + craftTotal;
+      // v7.0：总价 = 非批量纸张价（含系数）+ 工艺费 + 批量直接报价纸张价 + 批量直接报价工艺费
+      const total = paperDetails.reduce((sum, p) => sum + (p.contributedPrice != null ? p.contributedPrice : 0), 0) + craftTotal + batchDirectTotal + batchDirectCraftTotal;
       const incomplete = paperDetails.some(p => p.contributedPrice == null);
       return {
         levelId: level.id,
@@ -422,7 +471,10 @@ function calculate(inputs) {
         price: total,
         costIncomplete: incomplete,
         paperDetails,
-        craftTotal
+        craftTotal,
+        // v7.0：批量直接报价合计（用于明细卡片显示）
+        batchDirectTotal,
+        batchDirectCraftTotal
       };
     });
   } else {
@@ -447,7 +499,10 @@ function calculate(inputs) {
     hasMissingTier,
     hasAreaCoefficient,
     pricesByLevel,
-    warnings
+    warnings,
+    // v7.0：批量直接报价结果
+    batchDirectTotal,
+    batchDirectCraftTotal
   };
 }
 
@@ -497,6 +552,9 @@ const els = {
   paperDiscount: document.getElementById("paperDiscount"),
   directCoeffTable: document.getElementById("directCoeffTable"),
   directCoeffWrap: document.getElementById("directCoeffWrap"),
+  // v7.0：批量直接报价表
+  batchDirectTable: document.getElementById("batchDirectTable"),
+  batchDirectWrap: document.getElementById("batchDirectWrap"),
   tableMeta: document.getElementById("tableMeta"),
   prevPaper: document.getElementById("prevPaper"),
   nextPaper: document.getElementById("nextPaper"),
@@ -683,7 +741,9 @@ function renderSheets() {
     const triggerText = currentPaper ? (currentPaper.shortName || currentPaper.name) : "无可用纸张";
     const triggerDesc = currentPaper ? currentPaper.name : "请导入报价表";
     // v6.14：无直接系数的纸张提示只在直接系数模式下显示（标准报价模式隐藏）
-    const noDirectCoeff = calcMode === "direct" && !paperHasDirectCoeff(currentPaper);
+    // v7.0：有批量直接报价的纸张（如 40C棉麻布）不显示"请切换为标准报价"提示，改为显示批量直接报价提示
+    const hasBatchDirect = !!(currentPaper && currentPaper.batchDirect && currentPaper.batchDirect.maxArea > 0);
+    const noDirectCoeff = calcMode === "direct" && !paperHasDirectCoeff(currentPaper) && !hasBatchDirect;
 
     card.innerHTML = `
       <div class="sheet-title">纸张 ${index + 1}</div>
@@ -705,6 +765,10 @@ function renderSheets() {
         <div class="sheet-direct-warning">
           <span class="sheet-direct-warning-icon">⚠</span>
           <span>该纸张无直接系数（最高/最低倍数为空），请切换为<strong>标准报价</strong>计算</span>
+        </div>` : ""}
+        ${hasBatchDirect ? `
+        <div class="sheet-batchdirect-hint">
+          <span>批量直接报价：面积 ≤ ${currentPaper.batchDirect.maxArea} mm²（出血后）时按固定批量价报价，工艺费用直接叠加</span>
         </div>` : ""}
       </div>
       <div class="form-group" style="margin-bottom: 0;">
@@ -1029,7 +1093,8 @@ function onCalculate() {
         const coeff = details[0].areaCoefficient;
         return '¥ ' + formatMoney(bp) + ' × ' + coeff + ' = <span style="color:var(--brand);font-weight:600;">¥ ' + formatMoney(p) + '</span>';
       }
-      if (showDiscountCalc && details[0].discount && details[0].discount !== 1) {
+      // v7.0：批量直接报价纸张不显示折扣计算过程（价格固定，不打折）
+      if (showDiscountCalc && details[0].discount && details[0].discount !== 1 && !details[0].isBatchDirect) {
         return '¥ ' + formatPriceRaw(details[0].baseOriginalUnitPrice) + ' × ' + details[0].discount + ' = <span style="color:var(--brand);font-weight:600;">¥ ' + formatMoney(p) + '</span>';
       }
       return "¥ " + formatMoney(p);
@@ -1042,8 +1107,8 @@ function onCalculate() {
         const bp = getBasePrice(s);
         return '¥ ' + formatMoney(bp) + ' × ' + s.areaCoefficient;
       }
-      // v6.14：有折扣的纸张显示计算过程（原价 × 折扣）
-      if (showDiscountCalc && s.discount && s.discount !== 1) {
+      // v6.14：有折扣的纸张显示计算过程（原价 × 折扣）；v7.0：批量直接报价纸张不显示折扣过程
+      if (showDiscountCalc && s.discount && s.discount !== 1 && !s.isBatchDirect) {
         return '¥ ' + formatPriceRaw(s.baseOriginalUnitPrice) + ' × ' + s.discount;
       }
       return "¥ " + formatMoney(p);
@@ -1056,7 +1121,9 @@ function onCalculate() {
   }
   els.resPaperOriginalPrice.innerHTML = renderPaperTotal(s => s.originalUnitPrice, s => s.baseOriginalUnitPrice);
   els.resPaperPrice.innerHTML = renderPaperTotal(s => s.unitPrice, s => s.baseUnitPrice, true);
-  els.resCraftPrice.innerHTML = result.craftTotal ? "¥ " + formatMoney(result.craftTotal) : '<span class="price-missing">无该批量定价</span>';
+  // v7.0：工艺费用合计 = 常规工艺费 + 批量直接报价纸张的工艺费（直接叠加）
+  const craftDisplayTotal = (result.craftTotal || 0) + (result.batchDirectCraftTotal || 0);
+  els.resCraftPrice.innerHTML = craftDisplayTotal ? "¥ " + formatMoney(craftDisplayTotal) : '<span class="price-missing">无该批量定价</span>';
 
   // 吊绳/邮费行：直接系数模式隐藏
   const ropeRow = els.resRopePrice ? els.resRopePrice.closest(".result-row") : null;
@@ -1123,18 +1190,21 @@ function onCalculate() {
             <div class="direct-detail-row">
               <span class="dd-name">${escapeHtml(p.paperName)}</span>
               <span class="dd-calc">${p.contributedPrice != null
-                ? (!p.hasDirectCoeff && p.discount !== 1)
+                ? p.isBatchDirect
+                  ? `¥${formatMoney(p.batchDirectPrice)}（批量直接价）`
+                  : (!p.hasDirectCoeff && p.discount !== 1)
                   ? `¥${formatMoney(p.originalUnitPrice)} × ${p.discount}（折扣） = ¥${formatMoney(p.contributedPrice)}`
                   : (p.hasDirectCoeff)
                   ? `¥${formatMoney(p.originalUnitPrice)} × ${p.coefficient} = ¥${formatMoney(p.contributedPrice)}`
                   : `¥${formatMoney(p.contributedPrice)}`
                 : '<span class="price-missing">缺价</span>'}</span>
-              ${!p.hasDirectCoeff ? '<span class="dd-tag">无直接系数</span>' : ''}
+              ${!p.hasDirectCoeff && !p.isBatchDirect ? '<span class="dd-tag">无直接系数</span>' : ''}
+              ${p.isBatchDirect ? '<span class="dd-tag">批量直接价</span>' : ''}
             </div>
           `).join("")}
           <div class="direct-detail-row">
             <span class="dd-name">工艺</span>
-            <span class="dd-calc">${item.craftTotal ? '¥' + formatMoney(item.craftTotal) : '¥0'}</span>
+            <span class="dd-calc">${(item.craftTotal + item.batchDirectCraftTotal) ? '¥' + formatMoney(item.craftTotal + item.batchDirectCraftTotal) : '¥0'}</span>
           </div>
         </div>
         <div class="level-price">${item.costIncomplete
@@ -1257,6 +1327,16 @@ function renderTempCoeffInputs() {
   els.tempCoeffInputs.innerHTML = details.map((sd, i) => {
     const paper = getPapersByPriceList(CURRENT_PRICE_LIST_ID).find(p => p.id === sd.paperId);
     const hasDirect = paper && paperHasDirectCoeff(paper);
+    // v7.0：批量直接报价纸张不参与临时系数，固定显示批量直接价
+    if (sd.isBatchDirect) {
+      return `
+        <div class="temp-coeff-item">
+          <span class="temp-coeff-name">纸张${i + 1}（${escapeHtml(sd.paperName)}）</span>
+          <input type="number" class="temp-coeff-input" data-sheet-idx="${i}" value="1" disabled />
+          <span class="temp-coeff-tag">批量直接价</span>
+        </div>
+      `;
+    }
     let def = "1";
     if (hasDirect) {
       const coeffs = getDirectCoeffsForTier(tier, paper);
@@ -1270,7 +1350,7 @@ function renderTempCoeffInputs() {
       </div>
     `;
   }).join("");
-  els.tempCoeffInputs.querySelectorAll(".temp-coeff-input").forEach(input => {
+  els.tempCoeffInputs.querySelectorAll(".temp-coeff-input:not([disabled])").forEach(input => {
     input.addEventListener("input", renderTempCoeffResults);
   });
 }
@@ -1284,14 +1364,34 @@ function renderTempCoeffInputs() {
 function renderTempCoeffResults() {
   if (!els.tempCoeffResults || !_lastResult) return;
   const details = _lastResult.sheetDetails;
-  const craftTotal = _lastResult.craftTotal || 0;
+  // v7.0：工艺费合计 = 常规工艺费 + 批量直接报价纸张工艺费
+  const craftTotal = (_lastResult.craftTotal || 0) + (_lastResult.batchDirectCraftTotal || 0);
+  const batchDirectTotal = _lastResult.batchDirectTotal || 0;
   const inputs = els.tempCoeffInputs.querySelectorAll(".temp-coeff-input");
-  let total = craftTotal;
+  let total = craftTotal + batchDirectTotal;
   let incomplete = false;
   const rows = [];
   details.forEach((sd, i) => {
     const paper = getPapersByPriceList(CURRENT_PRICE_LIST_ID).find(p => p.id === sd.paperId);
     const hasDirect = paper && paperHasDirectCoeff(paper);
+    // v7.0：批量直接报价纸张 → 固定价格，不乘临时系数
+    if (sd.isBatchDirect) {
+      if (sd.unitPrice == null) {
+        incomplete = true;
+        rows.push({
+          name: sd.paperName,
+          display: '<span class="price-missing">无该批量定价</span>',
+          tag: "批量直接价"
+        });
+      } else {
+        rows.push({
+          name: sd.paperName,
+          display: `¥${formatMoney(sd.unitPrice)}（批量直接价）`,
+          tag: "批量直接价"
+        });
+      }
+      return;
+    }
     const raw = inputs[i] ? inputs[i].value.trim() : "";
     const coeff = parseFloat(raw);
     if (!raw || isNaN(coeff) || coeff < 0.01) {
@@ -1486,6 +1586,32 @@ function renderPriceTable() {
       els.directCoeffTable.querySelector("tbody").innerHTML =
         '<tr><td colspan="2" style="text-align:center;color:var(--text-secondary);">该纸张无直接系数（最高/最低倍数为空），按标准报价计算</td></tr>';
       els.directCoeffWrap.style.display = "";
+    }
+  }
+  // v7.0：批量直接报价表（仅部分 Sheet 有配置，无配置时显示占位提示）
+  // 板块：最大面积（出血后）+ 批量档位 + 批量价格；无价格档位留空占位（读取但不计算）
+  if (els.batchDirectTable && els.batchDirectWrap) {
+    const bd = paper.batchDirect;
+    const hasBD = !!(bd && bd.maxArea > 0 && bd.prices && Object.keys(bd.prices).length > 0);
+    const bdTheadRow = els.batchDirectTable.querySelector("thead tr");
+    const bdTbody = els.batchDirectTable.querySelector("tbody");
+    if (hasBD) {
+      const bdTiers = Object.keys(bd.prices).map(Number).sort((a, b) => a - b);
+      bdTheadRow.innerHTML = '<th>项目</th>' + bdTiers.map(t => `<th>${t} 张</th>`).join("");
+      bdTbody.innerHTML = `
+        <tr class="bd-maxarea"><td><strong>最大面积（出血后）</strong></td><td colspan="${bdTiers.length}">${bd.maxArea} mm²</td></tr>
+        <tr><td><strong>批量价格</strong></td>${bdTiers.map(t => {
+          const v = bd.prices[t];
+          if (v == null) return '<td><span class="price-missing">无该批量报价</span></td>';
+          return `<td>¥ ${formatMoney(Number(v))}</td>`;
+        }).join("")}</tr>
+      `;
+      els.batchDirectWrap.style.display = "";
+    } else {
+      bdTheadRow.innerHTML = '<th>项目</th>';
+      bdTbody.innerHTML =
+        '<tr><td colspan="2" style="text-align:center;color:var(--text-secondary);">该纸张无批量直接报价，按常规报价计算</td></tr>';
+      els.batchDirectWrap.style.display = "";
     }
   }
   els.tableMeta.textContent = `行数：${filtered.length} / ${paper.specs.length}`;
@@ -2312,6 +2438,26 @@ function paperToSheetRows(paper) {
       ["最低倍数", ...tiers.map(() => "")]
     ];
   }
+  // v7.0：批量直接报价三行（与报价表表格格式一致：批量直接报价最大面积 / 批量直接报价档位 / 批量直接报价价格）
+  // 有批量直接报价 → 填写实际最大面积/档位/价格；无批量直接报价 → 用纸张价格档位占位，最大面积与价格留空
+  function batchDirectRows(paper, fallbackTiers) {
+    const bd = paper.batchDirect;
+    const hasBD = bd && bd.maxArea > 0 && bd.prices && Object.keys(bd.prices).length > 0;
+    if (hasBD) {
+      const bdTiers = Object.keys(bd.prices).map(Number).sort((a, b) => a - b);
+      return [
+        ["批量直接报价最大面积", bd.maxArea],
+        ["批量直接报价档位", ...bdTiers],
+        ["批量直接报价价格", ...bdTiers.map(t => (bd.prices[t] == null ? "" : bd.prices[t]))]
+      ];
+    }
+    const tiers = fallbackTiers && fallbackTiers.length ? fallbackTiers : [];
+    return [
+      ["批量直接报价最大面积", ""],
+      ["批量直接报价档位", ...tiers],
+      ["批量直接报价价格", ...tiers.map(() => "")]
+    ];
+  }
   return [
     ["所属小组", GROUP_META.name],
     ["总报价表", getCurrentPriceList().name],
@@ -2319,6 +2465,7 @@ function paperToSheetRows(paper) {
     ["简称", paper.shortName],
     ["折扣系数", paper.discount],
     ...directCoeffRows(paper, tierKeys),
+    ...batchDirectRows(paper, tierKeys),
     ["备注", ""],
     [],
     headerRow,
@@ -2367,7 +2514,14 @@ function downloadPaperTemplate() {
     rows.push(["直接系数档位", ...dcTiers]);
     rows.push(["最高倍数", ...(hasDC ? dc.max : dcTiers.map(() => ""))]);
     rows.push(["最低倍数", ...(hasDC ? dc.min : dcTiers.map(() => ""))]);
-    rows.push(["备注", "直接系数档位/最高倍数/最低倍数三行：档位为批量张数，最高倍数→普通客户，最低倍数→大客户，中间等级自动等差插值。无直接系数的纸张按标准报价（乘折扣系数）计算。"]);
+    // v7.0：批量直接报价三行（有批量直接报价填实际值，无则用价格档位占位，最大面积与价格留空）
+    const bd = paper.batchDirect;
+    const hasBD = bd && bd.maxArea > 0 && bd.prices && Object.keys(bd.prices).length > 0;
+    const bdTiers = hasBD ? Object.keys(bd.prices).map(Number).sort((a, b) => a - b) : specTierKeys;
+    rows.push(["批量直接报价最大面积", hasBD ? bd.maxArea : ""]);
+    rows.push(["批量直接报价档位", ...bdTiers]);
+    rows.push(["批量直接报价价格", ...(hasBD ? bdTiers.map(t => (bd.prices[t] == null ? "" : bd.prices[t])) : bdTiers.map(() => ""))]);
+    rows.push(["备注", "直接系数档位/最高倍数/最低倍数三行：档位为批量张数，最高倍数→普通客户，最低倍数→大客户，中间等级自动等差插值。无直接系数的纸张按标准报价（乘折扣系数）计算。批量直接报价三行：最大面积（出血后）+ 档位 + 价格，面积在最大面积内时直接按批量价格报价（不打折、不乘系数），工艺费用直接叠加；无批量直接报价的纸张留空即可。"]);
     rows.push([]);
 
     // 规格区：取规格档位 + 工艺档位并集
@@ -2483,6 +2637,41 @@ function parsePaperExcel(arrayBuffer) {
         directCoeff = { tiers, max: maxs, min: mins };
       }
       // 仅档位占位（无最高/最低）或无任何行 → directCoeff 保持 null
+    }
+
+    // v7.0：解析批量直接报价三行（批量直接报价最大面积 / 批量直接报价档位 / 批量直接报价价格）
+    // 三行均填有值且档位与价格数量一致 → { maxArea, prices }；仅占位或缺失 → null（按常规报价计算）
+    let batchDirect = null;
+    {
+      const bdRows = { maxArea: null, tiers: null, prices: null };
+      for (let i = 0; i < rows.length; i++) {
+        const label = String(rows[i] && rows[i][0] || "").trim();
+        if (label === "批量直接报价最大面积") bdRows.maxArea = rows[i] && rows[i][1];
+        else if (label === "批量直接报价档位") bdRows.tiers = rows[i];
+        else if (label === "批量直接报价价格") bdRows.prices = rows[i];
+      }
+      const toNumArr = (row) => {
+        const arr = [];
+        if (!row) return arr;
+        for (let c = 1; c < row.length; c++) {
+          const v = row[c];
+          if (v === "" || v == null) continue;
+          const n = Number(v);
+          if (!isNaN(n)) arr.push(n);
+        }
+        return arr;
+      };
+      const maxAreaRaw = bdRows.maxArea;
+      const bdMaxArea = maxAreaRaw === "" || maxAreaRaw == null ? 0 : Number(maxAreaRaw);
+      const bdTiers = toNumArr(bdRows.tiers).filter(n => n > 0 && Number.isInteger(n));
+      const bdPrices = toNumArr(bdRows.prices);
+      // 最大面积有效 + 档位与价格数量一致 → 有效批量直接报价
+      if (bdMaxArea > 0 && bdTiers.length && bdPrices.length === bdTiers.length) {
+        const prices = {};
+        bdTiers.forEach((t, i) => { prices[t] = bdPrices[i]; });
+        batchDirect = { maxArea: bdMaxArea, prices };
+      }
+      // 仅占位（无最大面积/价格）或无任何行 → batchDirect 保持 null
     }
 
     if (!name) {
@@ -2657,6 +2846,11 @@ function parsePaperExcel(arrayBuffer) {
       // 表格未填有效直接系数时，匹配默认简称则继承默认配置，否则为 null（按标准报价计算）
       directCoeff: directCoeff || (defaultPaper && defaultPaper.directCoeff
         ? JSON.parse(JSON.stringify(defaultPaper.directCoeff))
+        : null),
+      // v7.0：批量直接报价：Sheet 专属配置，只读取报价表表格三行（最大面积/档位/价格）。
+      // 表格未填有效批量直接报价时，匹配默认简称则继承默认配置，否则为 null（按常规报价计算）
+      batchDirect: batchDirect || (defaultPaper && defaultPaper.batchDirect
+        ? JSON.parse(JSON.stringify(defaultPaper.batchDirect))
         : null),
       specs
     });

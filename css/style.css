@@ -1,4 +1,4 @@
-/* KOKALabel报价系统 v6.14 - 样式表 */
+/* KOKALabel报价系统 v7.0 - 样式表 */
 
 /* ===================== 全局变量与重置 ===================== */
     :root {
@@ -556,6 +556,23 @@
       font-weight: 700;
     }
 
+    /* v7.0：批量直接报价提示 */
+    .sheet-batchdirect-hint {
+      margin-top: 8px;
+      padding: 8px 10px;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-left: 3px solid #22c55e;
+      border-radius: 8px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #166534;
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      animation: fadeIn 0.3s ease;
+    }
+
     /* 面积系数提示行 */
     .area-coeff-row {
       padding: clamp(0.625rem, 3vw, 0.75rem) clamp(0.75rem, 3vw, 0.875rem);
@@ -1071,6 +1088,13 @@
       overflow-x: auto;
       border: 1px solid var(--border);
       border-radius: 10px;
+    }
+
+    /* v7.0：批量直接报价表 - 最大面积行高亮提示 */
+    .bd-maxarea {
+      background: #fff8e6;
+      color: #a16207;
+      font-weight: 600;
     }
 
     table {

@@ -6,11 +6,11 @@
   <meta name="googlebot" content="noindex, nofollow">
   <!-- P0 安全：CSP 策略 -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' cdn.sheetjs.com 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';">
-  <title>KOKALabel报价系统 v6.14</title>
-  <link rel="icon" type="image/x-icon" href="favicon.ico?v=6.14">
-  <link rel="icon" type="image/png" href="favicon.png?v=6.14">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=6.14">
-  <link rel="stylesheet" href="css/style.css?v=6.14">
+  <title>KOKALabel报价系统 v7.0</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico?v=7.0">
+  <link rel="icon" type="image/png" href="favicon.png?v=7.0">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=7.0">
+  <link rel="stylesheet" href="css/style.css?v=7.0">
 </head>
 <body>
   <!-- 顶部导航 -->
@@ -578,6 +578,22 @@
           </table>
         </div>
 
+        <!-- v7.0：批量直接报价表（仅部分 Sheet 有配置，无配置时显示占位提示） -->
+        <div class="table-wrap" id="batchDirectWrap" style="margin-top:20px;">
+          <h3 style="font-size:14px;color:var(--brand-dark);margin-bottom:10px;">批量直接报价表</h3>
+          <table id="batchDirectTable">
+            <thead>
+              <tr>
+                <th>项目</th>
+                <!-- 动态档位表头 -->
+              </tr>
+            </thead>
+            <tbody>
+              <!-- 动态行 -->
+            </tbody>
+          </table>
+        </div>
+
         <div class="pagination" id="paginationBar">
           <button class="btn" id="prevPaper" disabled="">上一张</button>
           <span class="page-info" id="paperPageInfo">-</span>
@@ -912,7 +928,7 @@
         <div class="setting-row">
           <div class="setting-info">
             <div class="setting-label">当前版本</div>
-            <div class="setting-desc">KOKALabel报价系统 v6.14</div>
+            <div class="setting-desc">KOKALabel报价系统 v7.0</div>
           </div>
           <div class="setting-control">
             <span class="placeholder-badge">正式版</span>
@@ -947,6 +963,6 @@
 
   <!-- P1.4: SheetJS defer 备用加载（不阻塞渲染），app.js 中 loadSheetJS() 为按需加载兜底 -->
   <script defer src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-  <script src="js/data.js?v=6.14"></script>
-  <script src="js/app.js?v=6.14"></script>
+  <script src="js/data.js?v=7.0"></script>
+  <script src="js/app.js?v=7.0"></script>
 </body></html>
