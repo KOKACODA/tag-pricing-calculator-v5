@@ -320,6 +320,8 @@ function calculate(inputs) {
     // 工艺费用：每个工艺独立检查档位，无值则跳过并提示
     const crafts = CRAFT_CONFIG[sheet.paperId] || [];
     const sheetCraftDetails = [];
+    // v7.2：每张纸自己的工艺费用合计（直接系数模式下：纸张价 + 工艺价 后再乘直接系数）
+    let sheetCraftTotal = 0;
     if (craftIds && craftIds.length) {
       for (const cid of craftIds) {
         const craft = crafts.find(c => c.id === cid);
@@ -337,6 +339,7 @@ function calculate(inputs) {
             batchDirectCraftTotal += cPrice;
           } else {
             craftTotal += cPrice;
+            sheetCraftTotal += cPrice;
           }
           sheetCraftDetails.push({ id: craft.id, name: craft.name, price: cPrice, missing: false });
         }
@@ -361,6 +364,8 @@ function calculate(inputs) {
       // v7.0：批量直接报价标记
       isBatchDirect,
       batchDirectPrice,
+      // v7.2：该纸张自己的工艺费用合计（用于直接系数模式：纸张 + 工艺 再乘系数）
+      sheetCraftTotal,
       crafts: sheetCraftDetails
     });
   }
@@ -441,12 +446,15 @@ function calculate(inputs) {
           }
         }
         let contributedPrice = null;
+        // v7.2：工艺价先加到该纸张价上，再乘直接系数：(纸张价 + 工艺价) × 系数
+        // 无直接系数的纸张系数为 1，等价于 纸张价 + 工艺价
+        const craftOfSheet = sd.sheetCraftTotal || 0;
         if (coeff == null) {
           // v6.14：无直接系数 → 不乘系数，unitPrice 已是折扣价（原价 × discount）
           coeff = 1;
-          contributedPrice = sd.unitPrice != null ? sd.unitPrice : null;
+          contributedPrice = sd.unitPrice != null ? (sd.unitPrice + craftOfSheet) : null;
         } else {
-          contributedPrice = sd.unitPrice != null ? sd.unitPrice * coeff : null;
+          contributedPrice = sd.unitPrice != null ? (sd.unitPrice + craftOfSheet) * coeff : null;
         }
         return {
           paperId: sd.paperId,
@@ -458,11 +466,13 @@ function calculate(inputs) {
           isBatchDirect: false,
           batchDirectPrice: null,
           discount: paper && paper.discount != null ? paper.discount : 1,
+          // v7.2：该纸张自己的工艺费用（用于明细卡片显示）
+          craftTotal: craftOfSheet,
           contributedPrice
         };
       });
-      // v7.0：总价 = 非批量纸张价（含系数）+ 工艺费 + 批量直接报价纸张价 + 批量直接报价工艺费
-      const total = paperDetails.reduce((sum, p) => sum + (p.contributedPrice != null ? p.contributedPrice : 0), 0) + craftTotal + batchDirectTotal + batchDirectCraftTotal;
+      // v7.2：工艺费已并入各纸张（纸张+工艺）× 系数，不再单独累加 craftTotal
+      const total = paperDetails.reduce((sum, p) => sum + (p.contributedPrice != null ? p.contributedPrice : 0), 0) + batchDirectTotal + batchDirectCraftTotal;
       const incomplete = paperDetails.some(p => p.contributedPrice == null);
       return {
         levelId: level.id,
@@ -1192,20 +1202,27 @@ function onCalculate() {
               <span class="dd-calc">${p.contributedPrice != null
                 ? p.isBatchDirect
                   ? `¥${formatMoney(p.batchDirectPrice)}（批量直接价）`
-                  : (!p.hasDirectCoeff && p.discount !== 1)
-                  ? `¥${formatMoney(p.originalUnitPrice)} × ${p.discount}（折扣） = ¥${formatMoney(p.contributedPrice)}`
                   : (p.hasDirectCoeff)
-                  ? `¥${formatMoney(p.originalUnitPrice)} × ${p.coefficient} = ¥${formatMoney(p.contributedPrice)}`
+                  ? (p.craftTotal > 0
+                      ? `(¥${formatMoney(p.originalUnitPrice)} + ¥${formatMoney(p.craftTotal)}) × ${p.coefficient} = ¥${formatMoney(p.contributedPrice)}`
+                      : `¥${formatMoney(p.originalUnitPrice)} × ${p.coefficient} = ¥${formatMoney(p.contributedPrice)}`)
+                  : (p.discount !== 1)
+                  ? (p.craftTotal > 0
+                      ? `¥${formatMoney(p.originalUnitPrice)} × ${p.discount}（折扣）+ ¥${formatMoney(p.craftTotal)} = ¥${formatMoney(p.contributedPrice)}`
+                      : `¥${formatMoney(p.originalUnitPrice)} × ${p.discount}（折扣） = ¥${formatMoney(p.contributedPrice)}`)
+                  : (p.craftTotal > 0)
+                  ? `¥${formatMoney(p.originalUnitPrice)} + ¥${formatMoney(p.craftTotal)} = ¥${formatMoney(p.contributedPrice)}`
                   : `¥${formatMoney(p.contributedPrice)}`
                 : '<span class="price-missing">缺价</span>'}</span>
               ${!p.hasDirectCoeff && !p.isBatchDirect ? '<span class="dd-tag">无直接系数</span>' : ''}
               ${p.isBatchDirect ? '<span class="dd-tag">批量直接价</span>' : ''}
             </div>
           `).join("")}
+          ${item.batchDirectCraftTotal > 0 ? `
           <div class="direct-detail-row">
-            <span class="dd-name">工艺</span>
-            <span class="dd-calc">${(item.craftTotal + item.batchDirectCraftTotal) ? '¥' + formatMoney(item.craftTotal + item.batchDirectCraftTotal) : '¥0'}</span>
-          </div>
+            <span class="dd-name">工艺（批量直接）</span>
+            <span class="dd-calc">¥${formatMoney(item.batchDirectCraftTotal)}</span>
+          </div>` : ''}
         </div>
         <div class="level-price">${item.costIncomplete
           ? '<span class="price-missing">部分缺价</span>'
@@ -1364,11 +1381,11 @@ function renderTempCoeffInputs() {
 function renderTempCoeffResults() {
   if (!els.tempCoeffResults || !_lastResult) return;
   const details = _lastResult.sheetDetails;
-  // v7.0：工艺费合计 = 常规工艺费 + 批量直接报价纸张工艺费
-  const craftTotal = (_lastResult.craftTotal || 0) + (_lastResult.batchDirectCraftTotal || 0);
+  // v7.2：常规工艺费已并入各纸张（纸张+工艺）× 系数，仅批量直接报价工艺费单独累加
+  const batchDirectCraftTotal = _lastResult.batchDirectCraftTotal || 0;
   const batchDirectTotal = _lastResult.batchDirectTotal || 0;
   const inputs = els.tempCoeffInputs.querySelectorAll(".temp-coeff-input");
-  let total = craftTotal + batchDirectTotal;
+  let total = batchDirectTotal + batchDirectCraftTotal;
   let incomplete = false;
   const rows = [];
   details.forEach((sd, i) => {
@@ -1407,20 +1424,32 @@ function renderTempCoeffResults() {
     const base = sd.originalUnitPrice != null ? sd.originalUnitPrice : sd.unitPrice;
     // 无直接系数的纸张：有折扣打折扣，无折扣则原价
     const discount = hasDirect ? 1 : (paper ? (paper.discount || 1) : 1);
-    const price = base * discount * coeff;
+    // v7.2：工艺价先加到纸张价上再乘系数：(纸张价 + 工艺价) × 系数
+    const craftOfSheet = sd.sheetCraftTotal || 0;
+    const price = (base * discount + craftOfSheet) * coeff;
     total += price;
     // v6.14：无直接系数且系数为 1 时不显示冗余的 ×1
     let calcStr;
     if (!hasDirect && coeff === 1) {
       calcStr = discount !== 1
-        ? `¥${formatMoney(base)} × ${discount}（折扣） = ¥${formatMoney(price)}`
-        : `¥${formatMoney(price)}`;
+        ? (craftOfSheet > 0
+            ? `¥${formatMoney(base)} × ${discount}（折扣）+ ¥${formatMoney(craftOfSheet)} = ¥${formatMoney(price)}`
+            : `¥${formatMoney(base)} × ${discount}（折扣） = ¥${formatMoney(price)}`)
+        : (craftOfSheet > 0
+            ? `¥${formatMoney(base)} + ¥${formatMoney(craftOfSheet)} = ¥${formatMoney(price)}`
+            : `¥${formatMoney(price)}`);
     } else if (!hasDirect) {
       calcStr = discount !== 1
-        ? `¥${formatMoney(base)} × ${discount}（折扣）× ${coeff} = ¥${formatMoney(price)}`
-        : `¥${formatMoney(base)} × ${coeff} = ¥${formatMoney(price)}`;
+        ? (craftOfSheet > 0
+            ? `(¥${formatMoney(base)} × ${discount}（折扣）+ ¥${formatMoney(craftOfSheet)}) × ${coeff} = ¥${formatMoney(price)}`
+            : `¥${formatMoney(base)} × ${discount}（折扣）× ${coeff} = ¥${formatMoney(price)}`)
+        : (craftOfSheet > 0
+            ? `(¥${formatMoney(base)} + ¥${formatMoney(craftOfSheet)}) × ${coeff} = ¥${formatMoney(price)}`
+            : `¥${formatMoney(base)} × ${coeff} = ¥${formatMoney(price)}`);
     } else {
-      calcStr = `¥${formatMoney(base)} × ${coeff} = ¥${formatMoney(price)}`;
+      calcStr = craftOfSheet > 0
+        ? `(¥${formatMoney(base)} + ¥${formatMoney(craftOfSheet)}) × ${coeff} = ¥${formatMoney(price)}`
+        : `¥${formatMoney(base)} × ${coeff} = ¥${formatMoney(price)}`;
     }
     rows.push({
       name: sd.paperName,
@@ -1440,10 +1469,11 @@ function renderTempCoeffResults() {
             ${r.tag ? `<span class="dd-tag">${r.tag}</span>` : ''}
           </div>
         `).join("")}
+        ${batchDirectCraftTotal > 0 ? `
         <div class="direct-detail-row">
-          <span class="dd-name">工艺</span>
-          <span class="dd-calc">¥${formatMoney(craftTotal)}</span>
-        </div>
+          <span class="dd-name">工艺（批量直接）</span>
+          <span class="dd-calc">¥${formatMoney(batchDirectCraftTotal)}</span>
+        </div>` : ''}
       </div>
       <div class="level-price">${incomplete
         ? '<span class="price-missing">部分缺价</span>'
