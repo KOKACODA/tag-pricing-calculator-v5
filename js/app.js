@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v7.2 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v7.3 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -182,10 +182,34 @@ function findSpecByDisplayCode(paper, displayCode, area) {
 }
 
 /**
+ * v7.3：强制面积规格映射（不读取表格数据）。
+ * 面积（加出血后）范围 → 强制规格代码：
+ *   4000-4999 → 005
+ *   5000-5499 → 055
+ *   5500-5999 → 006
+ * 命中返回对应规格副本；未命中返回 null（调用方按原逻辑处理）。
+ */
+function forceSpecByArea(paper, area) {
+  if (!paper || !Array.isArray(paper.specs)) return null;
+  let targetCode = null;
+  if (area >= 4000 && area <= 4999) targetCode = "005";
+  else if (area >= 5000 && area <= 5499) targetCode = "055";
+  else if (area >= 5500 && area <= 5999) targetCode = "006";
+  if (!targetCode) return null;
+  const spec = paper.specs.find(s => s.code === targetCode);
+  if (!spec) return null;
+  return { ...spec };
+}
+
+/**
  * 根据有效面积向上匹配尺寸规格。
  * 面积超过 10000 时使用最大规格（code "100"）并附带面积系数；007 与 008 合并显示为 007/008。
+ * v7.3：面积 4000-5999 时强制映射 005/055/006，不读取表格数据。
  */
 function matchSpec(paper, area) {
+  // v7.3：强制面积规格映射（不读取表格数据）
+  const forced = forceSpecByArea(paper, area);
+  if (forced) return forced;
   const candidates = paper.specs
     .filter(s => s.maxArea >= area)
     .sort((a, b) => a.maxArea - b.maxArea);
