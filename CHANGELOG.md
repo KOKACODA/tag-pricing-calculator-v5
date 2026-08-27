@@ -5,6 +5,20 @@
 
 ---
 
+## [v7.6] - 2026-08-28
+
+### 新增
+- **计算器页快捷切换报价表**：在"参数输入"标题行右侧新增"报价表"快捷下拉框（`quickPriceListSelector`），无需进入报价表查询页即可切换当前报价表
+  - 与报价表查询页的 `priceListSelector` 双向联动，切换后纸张材质/下拉列表自动更新
+  - 新增 `title-controls` / `quick-price-switcher` 样式，移动端自适应
+
+### 修改
+- `renderPriceListSelector` 重构为同时渲染两个下拉框并同步选中态
+- `onPriceListChange` 兼容两个下拉框触发来源，切换后同步选中态
+- 所有文件版本号统一更新至 v7.6
+
+---
+
 ## [v7.5] - 2026-08-27
 
 ### 新增

@@ -6,11 +6,11 @@
   <meta name="googlebot" content="noindex, nofollow">
   <!-- P0 安全：CSP 策略（v7.4：移除 script-src unsafe-inline，内联事件已外置到 app.js） -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' cdn.sheetjs.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';">
-  <title>KOKALabel报价系统 v7.5</title>
-  <link rel="icon" type="image/x-icon" href="favicon.ico?v=7.5">
-  <link rel="icon" type="image/png" href="favicon.png?v=7.5">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=7.5">
-  <link rel="stylesheet" href="css/style.css?v=7.5">
+  <title>KOKALabel报价系统 v7.6</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico?v=7.6">
+  <link rel="icon" type="image/png" href="favicon.png?v=7.6">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=7.6">
+  <link rel="stylesheet" href="css/style.css?v=7.6">
 </head>
 <body>
   <!-- 顶部导航 -->
@@ -29,9 +29,15 @@
       <div class="card">
         <div class="card-title-row">
           <h2 class="card-title">参数输入</h2>
-          <div class="calc-mode-switcher">
-            <button class="mode-btn active" data-mode="direct">直接系数计算</button>
-            <button class="mode-btn" data-mode="standard">标准报价</button>
+          <div class="title-controls">
+            <div class="quick-price-switcher" title="快捷切换当前报价表">
+              <span class="switcher-label">报价表</span>
+              <select id="quickPriceListSelector" class="quick-price-list-selector"></select>
+            </div>
+            <div class="calc-mode-switcher">
+              <button class="mode-btn active" data-mode="direct">直接系数计算</button>
+              <button class="mode-btn" data-mode="standard">标准报价</button>
+            </div>
           </div>
         </div>
 
@@ -904,7 +910,7 @@
           <div class="setting-row">
             <div class="setting-info">
               <div class="setting-label">当前版本</div>
-              <div class="setting-desc">KOKALabel报价系统 v7.5</div>
+              <div class="setting-desc">KOKALabel报价系统 v7.6</div>
             </div>
             <div class="setting-control">
               <span class="placeholder-badge">正式版</span>

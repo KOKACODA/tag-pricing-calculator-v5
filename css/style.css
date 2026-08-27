@@ -1,4 +1,4 @@
-/* KOKALabel报价系统 v7.5 - 样式表 */
+/* KOKALabel报价系统 v7.6 - 样式表 */
 
 /* ===================== 全局变量与重置 ===================== */
     :root {
@@ -176,6 +176,67 @@
     .calc-mode-switcher .mode-btn:hover:not(.active) {
       background: var(--brand-light);
       color: var(--brand-dark);
+    }
+
+    /* ===================== 标题行控制组（v7.6） ===================== */
+    .title-controls {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .quick-price-switcher {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 10px;
+      border-radius: 8px;
+      background: var(--bg-soft, #f4f7fa);
+      border: 1.5px solid var(--border);
+    }
+
+    .quick-price-switcher .switcher-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary, #5a6b7b);
+      white-space: nowrap;
+      margin: 0;
+    }
+
+    .quick-price-list-selector {
+      padding: 5px 10px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--brand-dark);
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: border 0.2s, box-shadow 0.2s;
+      max-width: 11rem;
+      min-width: 6rem;
+    }
+
+    .quick-price-list-selector:focus {
+      outline: none;
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(15, 111, 196, 0.15);
+    }
+
+    @media (max-width: 640px) {
+      .title-controls {
+        width: 100%;
+        justify-content: flex-start;
+      }
+      .quick-price-switcher {
+        flex: 1;
+        justify-content: space-between;
+      }
+      .quick-price-list-selector {
+        flex: 1;
+        max-width: none;
+      }
     }
 
     /* ===================== 表单组件 ===================== */

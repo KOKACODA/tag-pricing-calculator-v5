@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v7.5 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v7.6 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -600,6 +600,7 @@ const els = {
   paperPageInfo: document.getElementById("paperPageInfo"),
   paperSelector: document.getElementById("paperSelector"),
   priceListSelector: document.getElementById("priceListSelector"),
+  quickPriceListSelector: document.getElementById("quickPriceListSelector"),
   deletePriceListBtn: document.getElementById("deletePriceListBtn"),
   paperNotes: document.getElementById("paperNotes"),
   toast: document.getElementById("toast"),
@@ -1722,16 +1723,29 @@ function syncPaperSelector() {
 
 // -------------------- 报价表组切换 --------------------
 function renderPriceListSelector() {
-  if (!els.priceListSelector) return;
-  els.priceListSelector.innerHTML = PRICE_LISTS.map(pl => {
-    const selected = pl.id === CURRENT_PRICE_LIST_ID ? " selected" : "";
-    return `<option value="${escapeHtml(pl.id)}"${selected}>${escapeHtml(pl.name)}</option>`;
-  }).join("");
+  // 报价表查询页下拉框 + 计算器页快捷下拉框联动渲染
+  const renderOne = (sel) => {
+    if (!sel) return;
+    sel.innerHTML = PRICE_LISTS.map(pl => {
+      const selected = pl.id === CURRENT_PRICE_LIST_ID ? " selected" : "";
+      return `<option value="${escapeHtml(pl.id)}"${selected}>${escapeHtml(pl.name)}</option>`;
+    }).join("");
+    sel.value = CURRENT_PRICE_LIST_ID;
+  };
+  renderOne(els.priceListSelector);
+  renderOne(els.quickPriceListSelector);
 }
 
 function onPriceListChange() {
-  if (!els.priceListSelector) return;
-  const newId = els.priceListSelector.value;
+  // 兼容两个下拉框触发：以发起事件的元素取值
+  const active = document.activeElement;
+  let newId = "";
+  if (active && (active === els.priceListSelector || active === els.quickPriceListSelector)) {
+    newId = active.value;
+  } else {
+    newId = (els.quickPriceListSelector && els.quickPriceListSelector.value) ||
+            (els.priceListSelector && els.priceListSelector.value);
+  }
   if (newId && newId !== CURRENT_PRICE_LIST_ID) {
     setCurrentPriceList(newId);
     currentPaperIndex = 0; // 重置纸张索引
@@ -1739,7 +1753,11 @@ function onPriceListChange() {
     rebuildPaperUI();
     renderPriceTable();
     onCalculate();
+    renderPriceListSelector(); // 同步两个下拉框选中态
     showToast(`已切换到「${getCurrentPriceList().name}」`);
+  } else if (newId) {
+    // 值未变化时也同步选中态（例如通过另一处已切换）
+    renderPriceListSelector();
   }
 }
 
@@ -3356,6 +3374,7 @@ function bindEvents() {
     }
   });
   if (els.priceListSelector) els.priceListSelector.addEventListener("change", onPriceListChange);
+  if (els.quickPriceListSelector) els.quickPriceListSelector.addEventListener("change", onPriceListChange);
   if (els.deletePriceListBtn) els.deletePriceListBtn.addEventListener("click", onDeletePriceList);
 
   // 个人主页事件
