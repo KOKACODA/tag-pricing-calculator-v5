@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v7.3 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v7.4 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -41,9 +41,12 @@ function throttle(fn, delay) {
 
 /**
  * P1.4: SheetJS 懒加载 — 仅在需要时动态加载 CDN 脚本。
+ * v7.4: 增加 SRI 完整性校验 + crossorigin，防止 CDN 投毒。
  */
 let _sheetjsLoaded = false;
 let _sheetjsLoading = null;
+
+const SHEETJS_SRI = "sha384-QCIdq2UMVEoSRhR3ZWZwdz2/pivLowr+eokFMdYyukq7qI26VYRxFa4Nl6FKetmL";
 
 function loadSheetJS() {
   if (_sheetjsLoaded) return Promise.resolve();
@@ -51,8 +54,10 @@ function loadSheetJS() {
   _sheetjsLoading = new Promise((resolve, reject) => {
     const script = document.createElement('script');
     script.src = "https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js";
+    script.crossOrigin = "anonymous";
+    script.integrity = SHEETJS_SRI;
     script.onload = () => { _sheetjsLoaded = true; _sheetjsLoading = null; resolve(); };
-    script.onerror = () => { _sheetjsLoading = null; reject(new Error("SheetJS CDN 加载失败")); };
+    script.onerror = () => { _sheetjsLoading = null; reject(new Error("SheetJS CDN 加载失败（SRI 校验未通过）")); };
     document.head.appendChild(script);
   });
   return _sheetjsLoading;
@@ -3414,6 +3419,14 @@ function bindEvents() {
 
   // 点击页面其他区域关闭纸张材质下拉
   document.addEventListener("click", () => closeAllPaperDropdowns());
+
+  // v7.4：功能占位卡片事件绑定（移除内联 onclick，支持 CSP 收紧）
+  document.querySelectorAll(".feature-card[data-toast]").forEach(card => {
+    card.addEventListener("click", () => {
+      const msg = card.getAttribute("data-toast") || "功能开发中";
+      showToast(msg);
+    });
+  });
 
   // 临时毛利系数：输入时实时渲染报价卡片（不触发 onCalculate）
   if (els.customCoeffInput) {

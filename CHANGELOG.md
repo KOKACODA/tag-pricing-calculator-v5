@@ -5,6 +5,18 @@
 
 ---
 
+## [v7.4] - 2026-08-27
+
+### 安全加固
+- **P0 高危修复：移除 Git 仓库远程 URL 中明文嵌入的 GitHub Token**，改为从环境变量 `GH_TOKEN` 通过凭据助手注入，不再落盘明文凭据
+- **CSP 收紧**：移除 `script-src` 中的 `'unsafe-inline'`，将 10 处功能占位卡片的 `onclick` 内联事件改为 `data-toast` + `addEventListener` 绑定
+- **SheetJS 增加 SRI 完整性校验**（`sha384` + `crossorigin="anonymous"`），防止 CDN 投毒；移除 HTML 中冗余的 `<script defer>` 加载（懒加载已覆盖）
+- **新增 `_headers` 安全响应头**：`X-Frame-Options: DENY`、`X-Content-Type-Options: nosniff`、`Referrer-Policy`、`Permissions-Policy` 等
+- **`.wrangler/` 加入 `.gitignore`**，并移除已提交的 `.wrangler/cache/pages.json`（含 account_id 的构建缓存不再入库）
+- 所有文件版本号统一更新至 v7.4
+
+---
+
 ## [v7.3] - 2026-08-18
 
 ### 修改

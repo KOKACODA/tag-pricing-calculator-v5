@@ -4,13 +4,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow, noarchive">
   <meta name="googlebot" content="noindex, nofollow">
-  <!-- P0 安全：CSP 策略 -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' cdn.sheetjs.com 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';">
-  <title>KOKALabel报价系统 v7.3</title>
-  <link rel="icon" type="image/x-icon" href="favicon.ico?v=7.3">
-  <link rel="icon" type="image/png" href="favicon.png?v=7.3">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=7.3">
-  <link rel="stylesheet" href="css/style.css?v=7.3">
+  <!-- P0 安全：CSP 策略（v7.4：移除 script-src unsafe-inline，内联事件已外置到 app.js） -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' cdn.sheetjs.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';">
+  <title>KOKALabel报价系统 v7.4</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico?v=7.4">
+  <link rel="icon" type="image/png" href="favicon.png?v=7.4">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=7.4">
+  <link rel="stylesheet" href="css/style.css?v=7.4">
 </head>
 <body>
   <!-- 顶部导航 -->
@@ -842,22 +842,22 @@
           <h3 style="font-size:14px;color:var(--brand-dark);margin:6px 0 10px;">云同步中心</h3>
           <p style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;">后续可接入 Cloudflare D1 / KV 或自建后端，实现账号登录与跨设备数据同步。</p>
           <div class="feature-grid">
-            <div class="feature-card" onclick="showToast('账号登录功能占位')">
+            <div class="feature-card" data-toast="账号登录功能占位">
               <div class="feature-icon">👤</div>
               <div class="feature-title">账号登录</div>
               <div class="feature-desc">手机号 / 邮箱 + 验证码</div>
             </div>
-            <div class="feature-card" onclick="showToast('自动同步功能占位')">
+            <div class="feature-card" data-toast="自动同步功能占位">
               <div class="feature-icon">☁</div>
               <div class="feature-title">自动同步</div>
               <div class="feature-desc">修改后实时上传云端</div>
             </div>
-            <div class="feature-card" onclick="showToast('团队共享功能占位')">
+            <div class="feature-card" data-toast="团队共享功能占位">
               <div class="feature-icon">👥</div>
               <div class="feature-title">团队共享</div>
               <div class="feature-desc">多账号共享统一价格表</div>
             </div>
-            <div class="feature-card" onclick="showToast('版本回滚功能占位')">
+            <div class="feature-card" data-toast="版本回滚功能占位">
               <div class="feature-icon">↺</div>
               <div class="feature-title">版本回滚</div>
               <div class="feature-desc">恢复到任意历史版本</div>
@@ -869,32 +869,32 @@
       <div class="card">
         <h2 class="card-title">更多功能</h2>
         <div class="feature-grid">
-          <div class="feature-card" onclick="showToast('客户管理功能占位')">
+          <div class="feature-card" data-toast="客户管理功能占位">
             <div class="feature-icon">🧑</div>
             <div class="feature-title">客户管理</div>
             <div class="feature-desc">客户档案、等级绑定、报价偏好</div>
           </div>
-          <div class="feature-card" onclick="showToast('订单管理功能占位')">
+          <div class="feature-card" data-toast="订单管理功能占位">
             <div class="feature-icon">📦</div>
             <div class="feature-title">订单管理</div>
             <div class="feature-desc">从报价一键生成订单、状态跟踪</div>
           </div>
-          <div class="feature-card" onclick="showToast('统计报表功能占位')">
+          <div class="feature-card" data-toast="统计报表功能占位">
             <div class="feature-icon">📊</div>
             <div class="feature-title">统计报表</div>
             <div class="feature-desc">月度报价次数、热销尺寸、利润分析</div>
           </div>
-          <div class="feature-card" onclick="showToast('价格趋势功能占位')">
+          <div class="feature-card" data-toast="价格趋势功能占位">
             <div class="feature-icon">📈</div>
             <div class="feature-title">价格趋势</div>
             <div class="feature-desc">纸张/工艺价格历史曲线</div>
           </div>
-          <div class="feature-card" onclick="showToast('打印报价单功能占位')">
+          <div class="feature-card" data-toast="打印报价单功能占位">
             <div class="feature-icon">🖨</div>
             <div class="feature-title">打印报价单</div>
             <div class="feature-desc">生成 PDF 报价单并打印</div>
           </div>
-          <div class="feature-card" onclick="showToast('系统设置功能占位')">
+          <div class="feature-card" data-toast="系统设置功能占位">
             <div class="feature-icon">⚙</div>
             <div class="feature-title">系统设置</div>
             <div class="feature-desc">主题、语言、通知、缓存清理</div>
@@ -904,7 +904,7 @@
           <div class="setting-row">
             <div class="setting-info">
               <div class="setting-label">当前版本</div>
-              <div class="setting-desc">KOKALabel报价系统 v7.3</div>
+              <div class="setting-desc">KOKALabel报价系统 v7.4</div>
             </div>
             <div class="setting-control">
               <span class="placeholder-badge">正式版</span>
@@ -952,7 +952,6 @@
   <div class="toast" id="toast"></div>
 
   <!-- P1.4: SheetJS defer 备用加载（不阻塞渲染），app.js 中 loadSheetJS() 为按需加载兜底 -->
-  <script defer src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-  <script src="js/data.js?v=7.3"></script>
-  <script src="js/app.js?v=7.3"></script>
+  <script src="js/data.js?v=7.4"></script>
+  <script src="js/app.js?v=7.4"></script>
 </body></html>
