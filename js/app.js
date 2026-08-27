@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v7.4 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v7.5 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -1882,7 +1882,7 @@ function switchCalcMode(mode) {
  * 用途：换设备或被旧 localStorage 污染后，一键回到 DEFAULT 状态。
  */
 function resetToDefaults() {
-  const confirmMsg = "将清空以下本地修改并恢复出厂默认：\n\n• 报价表组（恢复为单个1号报价表）\n• 纸张配置（10 张1号报价表）\n• 工艺配置（含 烫金/UV/鸡眼/凹凸 等）\n• 吊绳配置\n• 邮费配置\n• 客户等级\n\n报价历史与本地快照不会被删除。\n\n确定继续？";
+  const confirmMsg = "将清空以下本地修改并恢复出厂默认：\n\n• 报价表组（恢复为默认 1/2/3/4 号报价表）\n• 纸张配置（43 张，含 2/3/4 号报价表）\n• 工艺配置（含 烫金/UV/鸡眼/凹凸 等）\n• 吊绳配置\n• 邮费配置\n• 客户等级\n\n报价历史与本地快照不会被删除。\n\n确定继续？";
   if (!confirm(confirmMsg)) return;
 
   const keysToReset = ["paperConfig", "craftConfig", "ropeConfig", "shippingConfig", "customerLevels", "priceLists", "currentPriceListId"];
@@ -1924,7 +1924,7 @@ function resetToDefaults() {
  * 保留范围：报价历史、本地快照。
  */
 function resetAllLocalSettings() {
-  const confirmMsg = "⚠️ 确定要恢复全局默认设置吗？\n\n将清除以下本地配置：\n• 报价表组（恢复为单个1号报价表）\n• 纸张配置（10 张1号报价表）\n• 工艺配置（含 烫金/UV/鸡眼/凹凸 等）\n• 吊绳配置\n• 邮费配置\n• 客户等级与毛利系数\n• 公司信息与个人偏好\n\n报价历史与本地快照不受影响。\n\n此操作不可撤销，恢复后页面将自动刷新。";
+  const confirmMsg = "⚠️ 确定要恢复全局默认设置吗？\n\n将清除以下本地配置：\n• 报价表组（恢复为默认 1/2/3/4 号报价表）\n• 纸张配置（43 张，含 2/3/4 号报价表）\n• 工艺配置（含 烫金/UV/鸡眼/凹凸 等）\n• 吊绳配置\n• 邮费配置\n• 客户等级与毛利系数\n• 公司信息与个人偏好\n\n报价历史与本地快照不受影响。\n\n此操作不可撤销，恢复后页面将自动刷新。";
   if (!confirm(confirmMsg)) return;
 
   // 清除所有本地配置 key（保留 history 和 snapshots）
@@ -2518,7 +2518,7 @@ function paperToSheetRows(paper) {
     ];
   }
   return [
-    ["所属小组", GROUP_META.name],
+    ["所属小组", GROUP_NAME_MAP[getCurrentPriceList().groupId] || GROUP_META.name],
     ["总报价表", getCurrentPriceList().name],
     ["报价表全称", paper.name],
     ["简称", paper.shortName],
@@ -2559,7 +2559,7 @@ function downloadPaperTemplate() {
   DEFAULT_PAPER_CONFIG.forEach((paper, idx) => {
     const rows = [];
     // 元信息区
-    rows.push(["所属小组", GROUP_META.name]);
+    rows.push(["所属小组", GROUP_NAME_MAP[getCurrentPriceList().groupId] || GROUP_META.name]);
     rows.push(["总报价表", getCurrentPriceList().name]);
     rows.push(["报价表全称", paper.name]);
     rows.push(["简称", paper.shortName]);
