@@ -1,4 +1,4 @@
-/* KOKALabel报价系统 v7.6 - 样式表 */
+/* KOKALabel报价系统 v7.7 - 样式表 */
 
 /* ===================== 全局变量与重置 ===================== */
     :root {
@@ -1252,6 +1252,40 @@
       padding: 24px 0 16px;
       margin-bottom: 8px;
       border-bottom: 1px solid var(--border);
+    }
+
+    /* ===================== 仓库链接卡片（v7.7） ===================== */
+    .warehouse-link {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-radius: 10px;
+      background: var(--brand-light);
+      border: 1.5px solid var(--brand);
+      color: var(--brand-dark);
+      font-weight: 600;
+      font-size: 15px;
+      text-decoration: none;
+      transition: background 0.2s, box-shadow 0.2s, transform 0.2s;
+    }
+    .warehouse-link:hover,
+    .warehouse-link:focus-visible {
+      background: var(--brand);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(15, 111, 196, 0.3);
+      transform: translateY(-1px);
+    }
+    .warehouse-link-external {
+      font-size: 16px;
+      line-height: 1;
+      opacity: 0.7;
+      transition: opacity 0.2s, transform 0.2s;
+    }
+    .warehouse-link:hover .warehouse-link-external {
+      opacity: 1;
+      transform: translate(2px, -2px);
     }
 
     .profile-section {

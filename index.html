@@ -6,11 +6,11 @@
   <meta name="googlebot" content="noindex, nofollow">
   <!-- P0 安全：CSP 策略（v7.4：移除 script-src unsafe-inline，内联事件已外置到 app.js） -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' cdn.sheetjs.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';">
-  <title>KOKALabel报价系统 v7.6</title>
-  <link rel="icon" type="image/x-icon" href="favicon.ico?v=7.6">
-  <link rel="icon" type="image/png" href="favicon.png?v=7.6">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=7.6">
-  <link rel="stylesheet" href="css/style.css?v=7.6">
+  <title>KOKALabel报价系统 v7.7</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico?v=7.7">
+  <link rel="icon" type="image/png" href="favicon.png?v=7.7">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=7.7">
+  <link rel="stylesheet" href="css/style.css?v=7.7">
 </head>
 <body>
   <!-- 顶部导航 -->
@@ -621,6 +621,14 @@
       </div>
 
       <div class="card">
+        <h2 class="card-title">仓库链接</h2>
+        <a class="warehouse-link" href="https://box-wms.pages.dev/" target="_blank" rel="noopener noreferrer">
+          <span class="warehouse-link-label">我的仓库</span>
+          <span class="warehouse-link-external">↗</span>
+        </a>
+      </div>
+
+      <div class="card">
         <h2 class="card-title">报价设置</h2>
 
         <div class="profile-section">
@@ -738,10 +746,11 @@
         <details class="rule-block">
           <summary>面积系数</summary>
           <div class="rule-content">
-            <p>当计算面积（含出血后的面积）超过 10000mm² 时，系统会自动使用最大规格（10000mm²）的价格作为基础价，并乘以面积系数来计算最终价格。</p>
-            <p><strong>面积系数如何计算：</strong>面积系数 = 计算面积 ÷ 10000，四舍五入保留两位小数。举例：计算面积为 10289mm²，系数 = 10289 ÷ 10000 = 1.03；计算面积为 34289mm²，系数 = 34289 ÷ 10000 = 3.43。</p>
-            <p><strong>价格如何计算：</strong>最终纸张价 = 基础价（10000mm² 规格价格）× 面积系数。举例：350克铜版纸 500 张，基础价 ¥80，面积系数 1.03，则最终价 = 80 × 1.03 = ¥82.4。</p>
-            <p><strong>报价结果中的显示：</strong>当触发面积系数时，报价结果区域会显示面积系数提示行，同时纸张价格合计行会以「¥ 基础价 × 系数 = ¥ 最终价」的格式显示。面积未超过 10000mm² 时不显示面积系数，按正常价格计算。</p>
+            <p><strong>优先使用报价表价格：</strong>当报价表内有覆盖当前面积的规格（含最大面积超过 10000mm² 的规格，如 2/3/4 号报价表）时，直接按该规格的报价表价格计算，不乘面积系数。</p>
+            <p><strong>何时触发面积系数：</strong>仅当计算面积（含出血后的面积）超过该报价表所有规格的最大面积时，系统自动使用最大规格的价格作为基础价，并乘以面积系数计算最终价格。</p>
+            <p><strong>面积系数如何计算：</strong>面积系数 = 计算面积 ÷ 10000，四舍五入保留两位小数。举例：计算面积为 21904mm²，系数 = 21904 ÷ 10000 = 2.19。</p>
+            <p><strong>价格如何计算：</strong>最终纸张价 = 最大规格基础价 × 面积系数。举例：某纸最大规格基础价 ¥100，面积系数 2.19，则最终价 = 100 × 2.19 = ¥219。</p>
+            <p><strong>报价结果中的显示：</strong>当触发面积系数时，报价结果区域会显示面积系数提示行，同时纸张价格合计行会以「¥ 基础价 × 系数 = ¥ 最终价」的格式显示。面积在报价表规格范围内时不显示面积系数，按报价表价格正常计算。</p>
           </div>
         </details>
       </div>
@@ -910,7 +919,7 @@
           <div class="setting-row">
             <div class="setting-info">
               <div class="setting-label">当前版本</div>
-              <div class="setting-desc">KOKALabel报价系统 v7.6</div>
+              <div class="setting-desc">KOKALabel报价系统 v7.7</div>
             </div>
             <div class="setting-control">
               <span class="placeholder-badge">正式版</span>
