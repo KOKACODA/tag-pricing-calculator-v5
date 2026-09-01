@@ -655,7 +655,10 @@ const els = {
   resRopePriceRow: null, // 稍后在 onCalculate 中动态获取
   resShippingPriceRow: null,
   // 默认报价标签
-  defaultPriceLabel: document.querySelector("#priceCards") ? document.querySelector("#priceCards").previousElementSibling : null
+  defaultPriceLabel: document.querySelector("#priceCards") ? document.querySelector("#priceCards").previousElementSibling : null,
+  // v7.9：默认报价卡片区域 & 显示开关
+  defaultPriceSection: document.getElementById("defaultPriceSection"),
+  showDefaultPriceCards: document.getElementById("showDefaultPriceCards")
 };
 
 let currentPaperIndex = 2;
@@ -1965,6 +1968,17 @@ function loadProfileToUI() {
   if (els.defaultRope) els.defaultRope.value = APP_PROFILE.defaultRope || "rope1";
   updateDefaultPaperOptions();
   if (els.defaultPaper) els.defaultPaper.value = APP_PROFILE.defaultPaperId || "";
+  if (els.showDefaultPriceCards) els.showDefaultPriceCards.checked = !!APP_PROFILE.showDefaultPriceCards;
+  applyDefaultPriceSection();
+}
+
+/**
+ * v7.9：根据个人主页设置控制默认报价卡片的显示/隐藏
+ */
+function applyDefaultPriceSection() {
+  if (els.defaultPriceSection) {
+    els.defaultPriceSection.style.display = APP_PROFILE.showDefaultPriceCards ? "" : "none";
+  }
 }
 
 function updateDefaultTierOptions() {
@@ -2002,10 +2016,12 @@ function saveProfile() {
     defaultTier: els.defaultTier ? els.defaultTier.value : APP_PROFILE.defaultTier,
     defaultRope: els.defaultRope ? (els.defaultRope.value || "rope1") : APP_PROFILE.defaultRope,
     defaultPaperId: els.defaultPaper ? (els.defaultPaper.value || "") : APP_PROFILE.defaultPaperId,
-    decimalPlaces: els.decimalPlaces ? parseDecimalPlaces(els.decimalPlaces.value) : parseDecimalPlaces(APP_PROFILE.decimalPlaces)
+    decimalPlaces: els.decimalPlaces ? parseDecimalPlaces(els.decimalPlaces.value) : parseDecimalPlaces(APP_PROFILE.decimalPlaces),
+    showDefaultPriceCards: els.showDefaultPriceCards ? els.showDefaultPriceCards.checked : !!APP_PROFILE.showDefaultPriceCards
   };
   saveToStorage("appProfile", APP_PROFILE);
   saveToStorage("customerLevels", CUSTOMER_LEVELS);
+  applyDefaultPriceSection();
   showToast("设置已保存");
   onCalculate();
 }
@@ -3538,6 +3554,10 @@ function bindEvents() {
       }
     }
   } catch (e) { console.error("[init] 默认纸张失败:", e); }
+
+  // v7.9：应用默认报价卡片显示开关（个人主页-报价设置）
+  try { applyDefaultPriceSection(); }
+  catch (e) { console.error("[init] 默认报价卡片显示失败:", e); }
 
   // 初始化完成后触发一次计算，确保页面有结果显示
   try { onCalculate(); }

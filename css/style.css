@@ -581,6 +581,26 @@
       line-height: 1.5;
     }
 
+    /* v7.9：成本合计放大 + 红色高亮 */
+    .result-row.cost-total-row {
+      margin-top: 8px;
+      padding: 16px 18px;
+      background: linear-gradient(135deg, var(--danger-light) 0%, #ffe6e6 100%);
+      border: 2px solid var(--danger);
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(220, 38, 38, 0.15);
+    }
+    .result-row.cost-total-row .result-label {
+      color: var(--danger);
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .result-row.cost-total-row .result-value {
+      color: var(--danger);
+      font-size: 26px;
+      font-weight: 800;
+    }
+
     .result-warnings {
       padding: 12px 14px;
       background: var(--danger-light);

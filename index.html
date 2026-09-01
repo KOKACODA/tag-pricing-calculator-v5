@@ -6,11 +6,11 @@
   <meta name="googlebot" content="noindex, nofollow">
   <!-- P0 安全：CSP 策略（v7.4：移除 script-src unsafe-inline，内联事件已外置到 app.js） -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' cdn.sheetjs.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';">
-  <title>KOKALabel报价系统 v7.8</title>
-  <link rel="icon" type="image/x-icon" href="favicon.ico?v=7.8">
-  <link rel="icon" type="image/png" href="favicon.png?v=7.8">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=7.8">
-  <link rel="stylesheet" href="css/style.css?v=7.8">
+  <title>KOKALabel报价系统 v7.9</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico?v=7.9">
+  <link rel="icon" type="image/png" href="favicon.png?v=7.9">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=7.9">
+  <link rel="stylesheet" href="css/style.css?v=7.9">
 </head>
 <body>
   <!-- 顶部导航 -->
@@ -461,9 +461,9 @@
             <span class="result-label">邮费</span>
             <span class="result-value" id="resShippingPrice">-</span>
           </div>
-          <div class="result-row">
+          <div class="result-row cost-total-row">
             <span class="result-label">成本合计</span>
-            <span class="result-value" id="resCost">-</span>
+            <span class="result-value cost-total-value" id="resCost">-</span>
           </div>
           <div id="resWarnings" class="result-warnings" style="display:none;"></div>
 
@@ -482,9 +482,11 @@
             <div class="tier-quick-btns" id="tierQuickBtns"></div>
           </div>
 
-          <!-- 默认客户等级报价卡片 -->
-          <div class="price-section-label">默认报价（原邮费）</div>
-          <div id="priceCards" class="price-cards"></div>
+          <!-- 默认客户等级报价卡片（v7.9：默认隐藏，可在 个人主页-报价设置 开启显示） -->
+          <div id="defaultPriceSection" style="display:none;">
+            <div class="price-section-label">默认报价（原邮费）</div>
+            <div id="priceCards" class="price-cards"></div>
+          </div>
 
           <!-- 临时毛利系数快速设置 -->
           <div id="customCoeffBar" class="custom-coeff-bar" style="display:none;">
@@ -670,6 +672,19 @@
             </div>
             <div class="setting-control">
               <input type="number" id="decimalPlaces" min="0" max="4" value="2">
+            </div>
+          </div>
+        </div>
+
+        <div class="profile-section">
+          <h3 class="section-title">报价显示</h3>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">显示默认报价卡片</div>
+              <div class="setting-desc">计算器页显示「默认报价（原邮费）/直接系数报价」客户等级报价卡片；关闭后临时毛利系数与邮费快速修改仍正常显示</div>
+            </div>
+            <div class="setting-control">
+              <input type="checkbox" id="showDefaultPriceCards">
             </div>
           </div>
         </div>
@@ -919,7 +934,7 @@
           <div class="setting-row">
             <div class="setting-info">
               <div class="setting-label">当前版本</div>
-              <div class="setting-desc">KOKALabel报价系统 v7.8</div>
+              <div class="setting-desc">KOKALabel报价系统 v7.9</div>
             </div>
             <div class="setting-control">
               <span class="placeholder-badge">正式版</span>
@@ -967,6 +982,6 @@
   <div class="toast" id="toast"></div>
 
   <!-- P1.4: SheetJS defer 备用加载（不阻塞渲染），app.js 中 loadSheetJS() 为按需加载兜底 -->
-  <script src="js/data.js?v=7.8"></script>
-  <script src="js/app.js?v=7.8"></script>
+  <script src="js/data.js?v=7.9"></script>
+  <script src="js/app.js?v=7.9"></script>
 </body></html>

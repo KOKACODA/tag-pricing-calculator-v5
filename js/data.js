@@ -10636,11 +10636,13 @@ let APP_PROFILE = loadFromStorage("appProfile", {
   defaultTier: "",
   defaultRope: "rope1",
   defaultPaperId: "",
-  decimalPlaces: 2
+  decimalPlaces: 2,
+  showDefaultPriceCards: false
 });
 // 旧版配置容错
 if (typeof APP_PROFILE.defaultRope === "undefined") APP_PROFILE.defaultRope = "rope1";
 if (typeof APP_PROFILE.defaultPaperId === "undefined") APP_PROFILE.defaultPaperId = "";
+if (typeof APP_PROFILE.showDefaultPriceCards === "undefined") APP_PROFILE.showDefaultPriceCards = false;
 
 // ============================================================
 // ===================== 报价表组辅助函数 =====================
