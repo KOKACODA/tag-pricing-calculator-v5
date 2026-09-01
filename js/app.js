@@ -658,8 +658,83 @@ const els = {
   defaultPriceLabel: document.querySelector("#priceCards") ? document.querySelector("#priceCards").previousElementSibling : null,
   // v7.9：默认报价卡片区域 & 显示开关
   defaultPriceSection: document.getElementById("defaultPriceSection"),
-  showDefaultPriceCards: document.getElementById("showDefaultPriceCards")
+  showDefaultPriceCards: document.getElementById("showDefaultPriceCards"),
+  // v7.10：运行日志
+  logTableBody: document.getElementById("logTableBody"),
+  logEmpty: document.getElementById("logEmpty"),
+  refreshLogBtn: document.getElementById("refreshLogBtn"),
+  exportLogBtn: document.getElementById("exportLogBtn"),
+  clearLogBtn: document.getElementById("clearLogBtn")
 };
+
+// ==================== 运行日志（v7.10） ====================
+const APP_LOG_KEY = "appLogs";
+const APP_LOG_MAX = 200;
+let _lastCalcLogTime = 0;
+
+function readAppLogs() {
+  try { return loadFromStorage(APP_LOG_KEY, []); }
+  catch (e) { return []; }
+}
+
+function writeAppLog(type, message) {
+  try {
+    const logs = readAppLogs();
+    logs.push({ t: Date.now(), type: type, msg: message });
+    if (logs.length > APP_LOG_MAX) logs.splice(0, logs.length - APP_LOG_MAX);
+    saveToStorage(APP_LOG_KEY, logs);
+  } catch (e) { console.error("[log] 写入失败:", e); }
+}
+
+// 计算日志节流：3 秒内只记录一条，避免输入过程刷屏
+function logCalc(message) {
+  const now = Date.now();
+  if (now - _lastCalcLogTime < 3000) return;
+  _lastCalcLogTime = now;
+  writeAppLog("calc", message);
+}
+
+// 全局错误捕获：记录到运行日志
+window.addEventListener("error", function (e) {
+  writeAppLog("error", (e.message || "未知错误") + " @ " + (e.filename || ""));
+});
+window.addEventListener("unhandledrejection", function (e) {
+  const r = e.reason;
+  writeAppLog("error", "未处理的 Promise: " + ((r && r.message) || r));
+});
+
+// 渲染运行日志列表
+const LOG_TYPE_LABEL = { calc: "计算", mode: "模式", priceList: "报价表", settings: "设置", data: "数据", excel: "导入导出", snapshot: "快照", reset: "重置", error: "错误" };
+function renderLogs() {
+  if (!els.logTableBody) return;
+  const logs = readAppLogs();
+  const empty = logs.length === 0;
+  if (els.logEmpty) els.logEmpty.style.display = empty ? "block" : "none";
+  els.logTableBody.innerHTML = logs.slice().reverse().map(l => {
+    const type = LOG_TYPE_LABEL[l.type] || l.type;
+    const cls = l.type === "error" ? "log-type-error" : "";
+    return `<tr>
+      <td style="padding:6px 8px;white-space:nowrap;">${new Date(l.t).toLocaleString("zh-CN", { hour12: false })}</td>
+      <td style="padding:6px 8px;white-space:nowrap;" class="${cls}">${escapeHtml(type)}</td>
+      <td style="padding:6px 8px;">${escapeHtml(l.msg)}</td>
+    </tr>`;
+  }).join("");
+}
+
+// 导出运行日志为 JSON
+function exportLogs() {
+  const logs = readAppLogs();
+  if (!logs.length) { showToast("暂无日志可导出"); return; }
+  downloadJson({ version: "7.10", exportedAt: new Date().toISOString(), logs: logs }, "KOKALabel运行日志_" + formatDateFile() + ".json");
+}
+
+// 清除运行日志
+function clearLogs() {
+  if (!readAppLogs().length) { showToast("暂无日志"); return; }
+  saveToStorage(APP_LOG_KEY, []);
+  renderLogs();
+  showToast("日志已清除");
+}
 
 let currentPaperIndex = 2;
 let toastTimer = null;
@@ -1298,6 +1373,8 @@ function onCalculate() {
   // -------------------- 临时系数 & 邮费快速修改 --------------------
   // 缓存本次计算结果供临时系数/邮费修改使用
   _lastResult = result;
+  // v7.10：记录计算日志（节流）
+  logCalc(`批量${result.tier != null ? result.tier : "-"}，成本合计${result.cost != null ? "¥" + formatMoney(result.cost) : "缺价"}`);
 
   // 临时系数输入栏：直接系数模式显示每纸独立临时直接系数，标准模式显示统一临时毛利系数
   if (calcMode === "direct") {
@@ -1752,6 +1829,7 @@ function onPriceListChange() {
   if (newId && newId !== CURRENT_PRICE_LIST_ID) {
     setCurrentPriceList(newId);
     currentPaperIndex = 0; // 重置纸张索引
+    writeAppLog("priceList", "切换报价表 → " + getCurrentPriceList().name);
     // 纸张按报价表隔离，需重渲染；吊绳/邮费全局共享，无需重渲染
     rebuildPaperUI();
     renderPriceTable();
@@ -1773,6 +1851,7 @@ function onDeletePriceList() {
   if (!confirm(`确定删除报价表「${pl.name}」吗？\n\n该报价表下的 ${getPapersByPriceList(CURRENT_PRICE_LIST_ID).length} 张纸张及关联工艺将被删除。\n吊绳/邮费为全局共享，不受影响。\n\n此操作不可撤销。`)) return;
   deletePriceList(CURRENT_PRICE_LIST_ID);
   currentPaperIndex = 0;
+  writeAppLog("priceList", "删除报价表: " + pl.name);
   renderPriceListSelector();
   rebuildPaperUI();
   renderPriceTable();
@@ -1879,6 +1958,7 @@ function resetCustomerLevels() {
 function switchCalcMode(mode) {
   calcMode = mode;
   saveToStorage("currentCalcMode", mode);
+  writeAppLog("mode", "切换计算模式: " + (mode === "direct" ? "直接系数" : "标准报价"));
   els.modeBtns.forEach(btn => {
     btn.classList.toggle("active", btn.dataset.mode === mode);
   });
@@ -1914,6 +1994,7 @@ function resetToDefaults() {
   // 重新从 DEFAULT 派生（深拷贝，避免后续修改污染源对象）
   PRICE_LISTS = DEFAULT_PRICE_LISTS.map(p => ({ ...p }));
   CURRENT_PRICE_LIST_ID = "priceList1";
+  writeAppLog("reset", "一键恢复出厂默认（纸张/工艺/吊绳/邮费/客户等级/报价表）");
   PAPER_CONFIG = DEFAULT_PAPER_CONFIG.map(p => ({
     ...p,
     specs: p.specs.map(s => ({ ...s, prices: { ...s.prices } }))
@@ -2022,6 +2103,7 @@ function saveProfile() {
   saveToStorage("appProfile", APP_PROFILE);
   saveToStorage("customerLevels", CUSTOMER_LEVELS);
   applyDefaultPriceSection();
+  writeAppLog("settings", "保存个人设置（小数位数:" + APP_PROFILE.decimalPlaces + "，默认报价卡片:" + (APP_PROFILE.showDefaultPriceCards ? "显示" : "隐藏") + "）");
   showToast("设置已保存");
   onCalculate();
 }
@@ -2073,6 +2155,7 @@ function saveSnapshots(list) {
 function createSnapshot() {
   const name = prompt("请输入快照名称", "快照 " + formatDateFile());
   if (!name) return;
+  writeAppLog("snapshot", "创建快照: " + name);
   const list = getSnapshots();
   list.unshift({
     id: generateId(),
@@ -2238,6 +2321,7 @@ function setLocalBackupStatus(html, isError) {
 }
 
 function exportLocalBackup() {
+  writeAppLog("data", "导出本地备份");
   const data = {
     version: "6.5",
     kind: "local-backup",
@@ -2312,6 +2396,7 @@ function importLocalBackup(file) {
     try {
       const data = JSON.parse(e.target.result);
       validateImportedData(data);
+      writeAppLog("data", "导入本地备份: " + (file.name || ""));
       if (data.kind && data.kind !== "local-backup" && data.kind !== "full-config") {
         throw new Error("文件类型不匹配，请使用「保存到本地文件」生成的文件");
       }
@@ -2383,6 +2468,7 @@ function importLocalBackup(file) {
 
 // -------------------- 导入 / 导出完整配置 --------------------
 function exportFullData() {
+  writeAppLog("data", "导出完整配置");
   const data = {
     version: "6.5",
     exportAt: new Date().toISOString(),
@@ -2409,6 +2495,7 @@ function importFullData(file) {
       const data = JSON.parse(e.target.result);
       // v6.6：全量导入同样执行数据校验（与本地备份恢复一致），防止损坏/恶意 JSON 导致崩溃
       validateImportedData(data);
+      writeAppLog("data", "导入完整配置: " + (file.name || ""));
       // 还原报价表组结构
       if (data.priceLists && Array.isArray(data.priceLists)) {
         PRICE_LISTS = data.priceLists;
@@ -2568,6 +2655,7 @@ function paperToSheetRows(paper) {
 }
 
 function exportPaperExcel() {
+  writeAppLog("excel", "导出报价表 Excel: " + getCurrentPriceList().name);
   // P1.4: 确保 SheetJS 已加载
   if (typeof XLSX === "undefined") { loadSheetJS().then(() => exportPaperExcel()).catch(() => showToast("Excel 库加载失败，请检查网络")); return; }
   const wb = XLSX.utils.book_new();
@@ -2969,6 +3057,7 @@ function parsePaperExcel(arrayBuffer) {
 
 function importPaperExcel(file) {
   if (!file) return;
+  writeAppLog("excel", "导入报价表 Excel: " + (file.name || ""));
   if (typeof XLSX === "undefined") {
     loadSheetJS().then(() => importPaperExcel(file)).catch(() => { setExcelStatus("Excel 库加载失败，请检查网络", true); showToast("Excel 库加载失败"); });
     return;
@@ -3050,6 +3139,7 @@ function ropeToSheetRows() {
 }
 
 function exportRopeExcel() {
+  writeAppLog("excel", "导出吊绳 Excel");
   if (typeof XLSX === "undefined") { loadSheetJS().then(() => exportRopeExcel()).catch(() => showToast("Excel 库加载失败，请检查网络")); return; }
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(ropeToSheetRows());
@@ -3152,6 +3242,7 @@ function parseRopeExcel(arrayBuffer) {
 
 function importRopeExcel(file) {
   if (!file) return;
+  writeAppLog("excel", "导入吊绳 Excel: " + (file.name || ""));
   if (typeof XLSX === "undefined") {
     loadSheetJS().then(() => importRopeExcel(file)).catch(() => { setRopeExcelStatus("Excel 库加载失败，请检查网络", true); showToast("Excel 库加载失败"); });
     return;
@@ -3207,6 +3298,7 @@ function shippingToSheetRows() {
 }
 
 function exportShippingExcel() {
+  writeAppLog("excel", "导出邮费 Excel");
   if (typeof XLSX === "undefined") { loadSheetJS().then(() => exportShippingExcel()).catch(() => showToast("Excel 库加载失败，请检查网络")); return; }
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(shippingToSheetRows());
@@ -3301,6 +3393,7 @@ function parseShippingExcel(arrayBuffer) {
 
 function importShippingExcel(file) {
   if (!file) return;
+  writeAppLog("excel", "导入邮费 Excel: " + (file.name || ""));
   if (typeof XLSX === "undefined") {
     loadSheetJS().then(() => importShippingExcel(file)).catch(() => { setShippingExcelStatus("Excel 库加载失败，请检查网络", true); showToast("Excel 库加载失败"); });
     return;
@@ -3352,6 +3445,7 @@ function switchPage(pageName) {
     loadProfileToUI();
     renderSnapshots();
     renderHistory();
+    renderLogs();
   }
 }
 
@@ -3451,6 +3545,11 @@ function bindEvents() {
   if (els.clearSnapshotBtn) els.clearSnapshotBtn.addEventListener("click", clearSnapshots);
   if (els.addHistoryPlaceholderBtn) els.addHistoryPlaceholderBtn.addEventListener("click", addHistoryPlaceholder);
   if (els.clearHistoryBtn) els.clearHistoryBtn.addEventListener("click", clearHistory);
+
+  // v7.10：运行日志按钮
+  if (els.refreshLogBtn) els.refreshLogBtn.addEventListener("click", () => { renderLogs(); showToast("日志已刷新"); });
+  if (els.exportLogBtn) els.exportLogBtn.addEventListener("click", exportLogs);
+  if (els.clearLogBtn) els.clearLogBtn.addEventListener("click", clearLogs);
 
   // 点击页面其他区域关闭纸张材质下拉
   document.addEventListener("click", () => closeAllPaperDropdowns());

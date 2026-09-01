@@ -6,11 +6,11 @@
   <meta name="googlebot" content="noindex, nofollow">
   <!-- P0 安全：CSP 策略（v7.4：移除 script-src unsafe-inline，内联事件已外置到 app.js） -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' cdn.sheetjs.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';">
-  <title>KOKALabel报价系统 v7.9</title>
-  <link rel="icon" type="image/x-icon" href="favicon.ico?v=7.9">
-  <link rel="icon" type="image/png" href="favicon.png?v=7.9">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=7.9">
-  <link rel="stylesheet" href="css/style.css?v=7.9">
+  <title>KOKALabel报价系统 v7.10</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico?v=7.10">
+  <link rel="icon" type="image/png" href="favicon.png?v=7.10">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=7.10">
+  <link rel="stylesheet" href="css/style.css?v=7.10">
 </head>
 <body>
   <!-- 顶部导航 -->
@@ -897,6 +897,31 @@
       </div>
 
       <div class="card">
+        <h2 class="card-title">运行日志</h2>
+        <div class="setting-row" style="border:none;padding:0 0 8px;">
+          <div class="setting-info">
+            <div class="setting-desc">自动记录计算、模式切换、报价表切换、导入导出、设置保存与错误信息（仅存于本机，最多保留最近 200 条）</div>
+          </div>
+        </div>
+        <div class="log-toolbar">
+          <button class="btn sm" id="refreshLogBtn">刷新</button>
+          <button class="btn sm" id="exportLogBtn">导出日志</button>
+          <button class="btn danger-outline sm" id="clearLogBtn">清除日志</button>
+        </div>
+        <div id="logTableWrap" style="max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-top:10px;">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead><tr>
+              <th style="text-align:left;padding:6px 8px;position:sticky;top:0;background:var(--brand-light);color:var(--brand-dark);">时间</th>
+              <th style="text-align:left;padding:6px 8px;position:sticky;top:0;background:var(--brand-light);color:var(--brand-dark);">类型</th>
+              <th style="text-align:left;padding:6px 8px;position:sticky;top:0;background:var(--brand-light);color:var(--brand-dark);">内容</th>
+            </tr></thead>
+            <tbody id="logTableBody"></tbody>
+          </table>
+        </div>
+        <div id="logEmpty" style="display:none;text-align:center;color:var(--text-secondary);padding:16px;font-size:13px;">暂无日志记录</div>
+      </div>
+
+      <div class="card">
         <h2 class="card-title">更多功能</h2>
         <div class="feature-grid">
           <div class="feature-card" data-toast="客户管理功能占位">
@@ -934,7 +959,7 @@
           <div class="setting-row">
             <div class="setting-info">
               <div class="setting-label">当前版本</div>
-              <div class="setting-desc">KOKALabel报价系统 v7.9</div>
+              <div class="setting-desc">KOKALabel报价系统 v7.10</div>
             </div>
             <div class="setting-control">
               <span class="placeholder-badge">正式版</span>
@@ -982,6 +1007,6 @@
   <div class="toast" id="toast"></div>
 
   <!-- P1.4: SheetJS defer 备用加载（不阻塞渲染），app.js 中 loadSheetJS() 为按需加载兜底 -->
-  <script src="js/data.js?v=7.9"></script>
-  <script src="js/app.js?v=7.9"></script>
+  <script src="js/data.js?v=7.10"></script>
+  <script src="js/app.js?v=7.10"></script>
 </body></html>

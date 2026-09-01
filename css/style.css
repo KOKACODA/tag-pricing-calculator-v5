@@ -1369,6 +1369,18 @@
       width: 160px;
     }
 
+    /* ===== v7.10 运行日志 ===== */
+    .log-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .log-type-error {
+      color: var(--danger);
+      font-weight: 700;
+    }
+
     /* ===== 规则折叠块 ===== */
     .rule-block {
       border: 1px solid var(--border);
