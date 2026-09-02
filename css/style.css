@@ -331,9 +331,11 @@
     }
 
     .rope-item {
+      position: relative;
       display: flex;
       align-items: center;
-      padding: 8px 10px;
+      min-height: 38px;
+      padding: 8px 42px 8px 10px;
       border: 1px solid var(--border);
       border-radius: 8px;
       background: #fff;
@@ -353,6 +355,23 @@
       height: 14px;
       accent-color: var(--brand);
       flex-shrink: 0;
+    }
+
+    .rope-item .option-label,
+    .craft-item .option-label {
+      min-width: 0;
+      line-height: 1.35;
+    }
+
+    .option-initial-price {
+      position: absolute;
+      top: 5px;
+      right: 7px;
+      color: var(--danger);
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
     }
 
     @media (max-width: 480px) {
@@ -437,6 +456,45 @@
       display: grid;
     }
 
+    .paper-search {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      grid-column: 1 / -1;
+      padding-bottom: 2px;
+      background: #fff;
+    }
+
+    .paper-search-input {
+      width: 100%;
+      padding: 9px 11px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #f8fafc;
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    .paper-search-input:focus {
+      outline: none;
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(15, 111, 196, 0.12);
+      background: #fff;
+    }
+
+    .paper-search-empty {
+      grid-column: 1 / -1;
+      padding: 18px 12px;
+      color: var(--text-secondary);
+      text-align: center;
+      font-size: 13px;
+    }
+
+    .paper-search-empty[hidden],
+    .paper-option.is-filtered {
+      display: none;
+    }
+
     .paper-option {
       display: flex;
       flex-direction: column;
@@ -487,9 +545,11 @@
     }
 
     .craft-item {
+      position: relative;
       display: flex;
       align-items: center;
-      padding: 10px 12px;
+      min-height: 40px;
+      padding: 10px 46px 10px 12px;
       border: 1px solid var(--border);
       border-radius: 8px;
       background: #fff;
@@ -579,6 +639,44 @@
       overflow-wrap: break-word;
       word-break: break-all;
       line-height: 1.5;
+    }
+
+    .cost-total-row {
+      border: 1px solid var(--danger-border);
+      background: var(--danger-light);
+    }
+
+    .cost-total-row .result-label {
+      color: var(--danger);
+      font-weight: 800;
+    }
+
+    .cost-total-row #resCost {
+      color: var(--danger);
+      font-size: clamp(22px, 4vw, 30px);
+      font-weight: 900;
+      line-height: 1.2;
+    }
+
+    .rope-result-detail {
+      display: inline-flex;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      align-items: baseline;
+    }
+
+    .rope-result-name,
+    .rope-result-price {
+      font-weight: 700;
+    }
+
+    .rope-result-price {
+      color: var(--brand);
+    }
+
+    .rope-result-formula {
+      color: var(--text-secondary);
+      font-weight: 500;
     }
 
     .result-warnings {

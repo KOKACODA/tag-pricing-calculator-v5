@@ -90,6 +90,38 @@ function formatPriceRaw(value) {
   return Number.isInteger(n) ? String(n) : formatMoney(n);
 }
 
+// 工艺与吊绳选项右上角统一展示 1000 档的初始价格，不随当前报价档位变化。
+const INITIAL_OPTION_PRICE_TIER = 1000;
+
+function getInitialOptionPrice(prices) {
+  if (!prices || prices[INITIAL_OPTION_PRICE_TIER] == null || prices[INITIAL_OPTION_PRICE_TIER] === "") {
+    return "";
+  }
+  const value = Number(prices[INITIAL_OPTION_PRICE_TIER]);
+  return Number.isFinite(value) ? String(value) : "";
+}
+
+function normalizePaperSearchText(value) {
+  return String(value == null ? "" : value).toLocaleLowerCase().replace(/\s+/g, "");
+}
+
+/**
+ * 纸张模糊匹配：每个输入词都需要出现在简称或全称中。
+ */
+function paperMatchesSearch(paper, query) {
+  if (!paper) return false;
+  const tokens = String(query == null ? "" : query)
+    .toLocaleLowerCase()
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(normalizePaperSearchText);
+  if (!tokens.length) return true;
+
+  const haystack = normalizePaperSearchText(`${paper.shortName || ""} ${paper.name || ""}`);
+  return tokens.every(token => haystack.includes(token));
+}
+
 /**
  * 计算含出血的单张面积。
  */
@@ -672,12 +704,16 @@ function renderRopeRadios() {
   const ropes = ROPE_CONFIG;
   const hasDesired = ropes.some(r => r.id === desired);
   const checkedId = hasDesired ? desired : (ropes.find(r => r.id === fallback) ? fallback : (ropes[0] && ropes[0].id));
-  return ropes.map(r => `
-    <label class="rope-item">
-      <input type="radio" name="rope" value="${escapeHtml(r.id)}"${r.id === checkedId ? " checked" : ""} />
-      <span>${escapeHtml(r.name)}</span>
-    </label>
-  `).join("");
+  return ropes.map(r => {
+    const initialPrice = getInitialOptionPrice(r.prices);
+    return `
+      <label class="rope-item">
+        <input type="radio" name="rope" value="${escapeHtml(r.id)}"${r.id === checkedId ? " checked" : ""} />
+        <span class="option-label">${escapeHtml(r.name)}</span>
+        ${initialPrice ? `<sup class="option-initial-price" title="1000档初始价" aria-label="1000档初始价 ${initialPrice}">${initialPrice}</sup>` : ""}
+      </label>
+    `;
+  }).join("");
 }
 
 function initOptions() {
@@ -770,12 +806,16 @@ function renderSheets() {
 
     const crafts = CRAFT_CONFIG[sheet.paperId] || [];
     const craftHtml = crafts.length
-      ? crafts.map(c => `
-          <label class="craft-item">
-            <input type="checkbox" value="${c.id}" data-sheet="${index}" data-craft="${c.id}"${sheet.craftIds.includes(c.id) ? " checked" : ""} />
-            <span>${escapeHtml(c.name)}</span>
-          </label>
-        `).join("")
+      ? crafts.map(c => {
+          const initialPrice = getInitialOptionPrice(c.prices);
+          return `
+            <label class="craft-item">
+              <input type="checkbox" value="${escapeHtml(c.id)}" data-sheet="${index}" data-craft="${escapeHtml(c.id)}"${sheet.craftIds.includes(c.id) ? " checked" : ""} />
+              <span class="option-label">${escapeHtml(c.name)}</span>
+              ${initialPrice ? `<sup class="option-initial-price" title="1000档初始价" aria-label="1000档初始价 ${initialPrice}">${initialPrice}</sup>` : ""}
+            </label>
+          `;
+        }).join("")
       : '<div class="craft-empty">该纸张暂无附加工艺</div>';
 
     const triggerText = currentPaper ? (currentPaper.shortName || currentPaper.name) : "无可用纸张";
@@ -790,7 +830,7 @@ function renderSheets() {
       <div class="form-group">
         <label>纸张材质 <span class="hint">点击展开，选择后自动收起</span></label>
         <div class="paper-dropdown" data-sheet="${index}">
-          <div class="paper-trigger">
+          <div class="paper-trigger" role="button" tabindex="0" aria-label="选择纸张材质">
             <div>
               <span class="paper-trigger-text">${escapeHtml(triggerText)}</span>
               <span class="paper-trigger-desc">${escapeHtml(triggerDesc)}</span>
@@ -798,6 +838,10 @@ function renderSheets() {
             <span class="paper-trigger-arrow"></span>
           </div>
           <div class="paper-options">
+            <div class="paper-search">
+              <input type="search" class="paper-search-input" data-sheet="${index}" placeholder="输入简称或全称搜索" autocomplete="off" aria-label="搜索纸张材质" />
+            </div>
+            <div class="paper-search-empty" hidden>未找到匹配的纸张材质</div>
             ${paperOptions}
           </div>
         </div>
@@ -847,6 +891,30 @@ function renderSheets() {
       e.stopPropagation();
       togglePaperDropdown(dd);
     });
+    trigger.addEventListener("keydown", e => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        e.stopPropagation();
+        togglePaperDropdown(dd);
+      }
+    });
+  });
+  els.sheetList.querySelectorAll(".paper-search-input").forEach(input => {
+    input.addEventListener("click", e => e.stopPropagation());
+    input.addEventListener("input", e => {
+      e.stopPropagation();
+      filterPaperOptions(input);
+    });
+    input.addEventListener("keydown", e => {
+      e.stopPropagation();
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const firstMatch = input.closest(".paper-dropdown")?.querySelector(".paper-option:not(.is-filtered)");
+        if (firstMatch) onPaperChange(firstMatch);
+      } else if (e.key === "Escape") {
+        closeAllPaperDropdowns();
+      }
+    });
   });
   els.sheetList.querySelectorAll(".paper-option").forEach(opt => {
     opt.addEventListener("click", e => {
@@ -877,8 +945,33 @@ function togglePaperDropdown(dropdown) {
   if (!isOpen) {
     dropdown.classList.add("open");
     // 下一帧测量弹窗位置，避免 display:none 状态下 getBoundingClientRect 返回 0
-    requestAnimationFrame(() => adjustDropdownPosition(dropdown));
+    requestAnimationFrame(() => {
+      const searchInput = dropdown.querySelector(".paper-search-input");
+      if (searchInput) {
+        searchInput.value = "";
+        filterPaperOptions(searchInput);
+      }
+      adjustDropdownPosition(dropdown);
+    });
   }
+}
+
+function filterPaperOptions(input) {
+  const dropdown = input.closest(".paper-dropdown");
+  if (!dropdown) return;
+
+  const currentPapers = getPapersByPriceList(CURRENT_PRICE_LIST_ID);
+  let visibleCount = 0;
+  dropdown.querySelectorAll(".paper-option").forEach(option => {
+    const paper = currentPapers.find(item => item.id === option.dataset.paper);
+    const isMatch = paperMatchesSearch(paper, input.value);
+    option.classList.toggle("is-filtered", !isMatch);
+    if (isMatch) visibleCount += 1;
+  });
+
+  const emptyState = dropdown.querySelector(".paper-search-empty");
+  if (emptyState) emptyState.hidden = visibleCount > 0;
+  if (dropdown.classList.contains("open")) adjustDropdownPosition(dropdown);
 }
 
 /**
@@ -1178,7 +1271,18 @@ function onCalculate() {
     if (ropeRow) ropeRow.style.display = "";
     if (shippingRow) shippingRow.style.display = "";
     if (paperDiscountRow) paperDiscountRow.style.display = "";
-    els.resRopePrice.innerHTML = result.ropePrice != null ? "¥ " + formatMoney(result.ropePrice) : '<span class="price-missing">无该批量定价</span>';
+    const selectedRope = ROPE_CONFIG.find(item => item.id === ropeId);
+    const ropeName = selectedRope ? selectedRope.name : "未选择吊绳";
+    const ropePrice = result.ropePrice != null
+      ? `<span class="rope-result-price">¥ ${formatMoney(result.ropePrice)}</span>`
+      : '<span class="price-missing">无该批量定价</span>';
+    els.resRopePrice.innerHTML = `
+      <span class="rope-result-detail">
+        <span class="rope-result-name">${escapeHtml(ropeName)}</span>
+        <span class="rope-result-formula"> × ${result.tier}个 = </span>
+        ${ropePrice}
+      </span>
+    `;
     els.resShippingPrice.innerHTML = result.shippingPrice != null ? "¥ " + formatMoney(result.shippingPrice) : '<span class="price-missing">无该批量定价</span>';
   }
   els.resCost.innerHTML = result.costIncomplete
