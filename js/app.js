@@ -123,6 +123,72 @@ function paperMatchesSearch(paper, query) {
 }
 
 /**
+ * 默认客户报价显隐只作用于标准报价；直接系数结果始终显示。
+ */
+function shouldShowDefaultQuoteCards(mode, visiblePreference) {
+  return mode !== "standard" || visiblePreference !== false;
+}
+
+function padQuoteDatePart(value) {
+  return String(value).padStart(2, "0");
+}
+
+function formatQuoteRecordNumber(dateValue) {
+  const date = new Date(dateValue);
+  const safeDate = isNaN(date.getTime()) ? new Date() : date;
+  return "BJ-" +
+    safeDate.getFullYear() +
+    padQuoteDatePart(safeDate.getMonth() + 1) +
+    padQuoteDatePart(safeDate.getDate()) + "-" +
+    padQuoteDatePart(safeDate.getHours()) +
+    padQuoteDatePart(safeDate.getMinutes()) +
+    padQuoteDatePart(safeDate.getSeconds());
+}
+
+function cloneQuoteData(value) {
+  if (value == null) return value;
+  return JSON.parse(JSON.stringify(value));
+}
+
+/**
+ * 构造不可受后续页面状态变化影响的报价历史记录。
+ */
+function buildQuoteHistoryRecord({
+  id,
+  createdAt,
+  customerName,
+  note,
+  mode,
+  priceList,
+  inputs,
+  result,
+  ropeName,
+  regionName
+}) {
+  const date = new Date(createdAt);
+  const safeDate = isNaN(date.getTime()) ? new Date() : date;
+  const recordNo = formatQuoteRecordNumber(safeDate);
+  const safeCustomerName = String(customerName || "").trim();
+  const snapshot = cloneQuoteData(result || {});
+  snapshot.ropeName = String(ropeName || "");
+  snapshot.regionName = String(regionName || "");
+
+  return {
+    id: String(id || recordNo),
+    schemaVersion: 2,
+    recordNo,
+    title: safeCustomerName || recordNo,
+    customerName: safeCustomerName,
+    note: String(note || "").trim(),
+    createdAt: safeDate.toISOString(),
+    mode: mode === "direct" ? "direct" : "standard",
+    priceList: cloneQuoteData(priceList || {}),
+    inputs: cloneQuoteData(inputs || {}),
+    snapshot
+  };
+}
+
+/**
  * 计算含出血的单张面积。
  */
 function calcBleedArea(length, width) {
@@ -633,6 +699,8 @@ const els = {
   paperSelector: document.getElementById("paperSelector"),
   priceListSelector: document.getElementById("priceListSelector"),
   quickPriceListSelector: document.getElementById("quickPriceListSelector"),
+  defaultQuoteToggle: document.getElementById("defaultQuoteToggle"),
+  defaultQuoteToggleState: document.getElementById("defaultQuoteToggleState"),
   deletePriceListBtn: document.getElementById("deletePriceListBtn"),
   paperNotes: document.getElementById("paperNotes"),
   toast: document.getElementById("toast"),
@@ -687,7 +755,7 @@ const els = {
   resRopePriceRow: null, // 稍后在 onCalculate 中动态获取
   resShippingPriceRow: null,
   // 默认报价标签
-  defaultPriceLabel: document.querySelector("#priceCards") ? document.querySelector("#priceCards").previousElementSibling : null
+  defaultPriceLabel: document.getElementById("defaultPriceLabel")
 };
 
 let currentPaperIndex = 2;
@@ -695,6 +763,30 @@ let toastTimer = null;
 let sheetsState = [];
 // 计算模式：默认直接系数计算（v6.1 起），持久化到 localStorage
 let calcMode = loadFromStorage("currentCalcMode", "direct"); // "standard" | "direct"
+let defaultQuoteVisible = loadFromStorage("defaultQuoteVisible", true) !== false;
+
+function applyDefaultQuoteVisibility() {
+  const showCards = shouldShowDefaultQuoteCards(calcMode, defaultQuoteVisible);
+  if (els.defaultPriceLabel) els.defaultPriceLabel.classList.toggle("default-quote-hidden", !showCards);
+  if (els.priceCards) els.priceCards.classList.toggle("default-quote-hidden", !showCards);
+  if (els.defaultQuoteToggle) {
+    els.defaultQuoteToggle.setAttribute("aria-checked", String(defaultQuoteVisible));
+    els.defaultQuoteToggle.classList.toggle("is-off", !defaultQuoteVisible);
+    els.defaultQuoteToggle.title = defaultQuoteVisible
+      ? "标准报价中的默认客户报价当前显示"
+      : "标准报价中的默认客户报价当前隐藏";
+  }
+  if (els.defaultQuoteToggleState) {
+    els.defaultQuoteToggleState.textContent = defaultQuoteVisible ? "显示" : "隐藏";
+  }
+}
+
+function toggleDefaultQuoteVisibility() {
+  defaultQuoteVisible = !defaultQuoteVisible;
+  saveToStorage("defaultQuoteVisible", defaultQuoteVisible);
+  applyDefaultQuoteVisibility();
+  showToast(defaultQuoteVisible ? "标准默认报价已显示" : "标准默认报价已隐藏");
+}
 
 // -------------------- 初始化下拉选项 --------------------
 // 根据 APP_PROFILE.defaultRope 生成吊绳单选项 HTML（顶层作用域，供 initOptions 和 rebuildRopeUI 共用）
@@ -1437,6 +1529,7 @@ function onCalculate() {
   if (els.defaultPriceLabel) {
     els.defaultPriceLabel.textContent = calcMode === "direct" ? "直接系数报价" : "默认报价（原邮费）";
   }
+  applyDefaultQuoteVisibility();
 }
 
 // 缓存上一次计算结果
@@ -3491,6 +3584,9 @@ function bindEvents() {
   els.modeBtns.forEach(btn => {
     btn.addEventListener("click", () => switchCalcMode(btn.dataset.mode));
   });
+  if (els.defaultQuoteToggle) {
+    els.defaultQuoteToggle.addEventListener("click", toggleDefaultQuoteVisibility);
+  }
 
   // 报价小数位数：实时保存并立即重算
   if (els.decimalPlaces) {

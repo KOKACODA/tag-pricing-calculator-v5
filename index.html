@@ -28,7 +28,14 @@
     <section class="page active" id="page-calculator">
       <div class="card">
         <div class="card-title-row">
-          <h2 class="card-title">参数输入</h2>
+          <div class="card-title-main">
+            <h2 class="card-title">参数输入</h2>
+            <button type="button" id="defaultQuoteToggle" class="quote-visibility-toggle" role="switch" aria-checked="true" title="仅控制标准报价中的默认客户报价">
+              <span class="quote-visibility-label">默认报价</span>
+              <span class="quote-visibility-track" aria-hidden="true"><span class="quote-visibility-thumb"></span></span>
+              <span class="quote-visibility-state" id="defaultQuoteToggleState">显示</span>
+            </button>
+          </div>
           <div class="title-controls">
             <div class="quick-price-switcher" title="快捷切换当前报价表">
               <span class="switcher-label">报价表</span>
@@ -483,7 +490,7 @@
           </div>
 
           <!-- 默认客户等级报价卡片 -->
-          <div class="price-section-label">默认报价（原邮费）</div>
+          <div class="price-section-label" id="defaultPriceLabel">默认报价（原邮费）</div>
           <div id="priceCards" class="price-cards"></div>
 
           <!-- 临时毛利系数快速设置 -->
