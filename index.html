@@ -632,6 +632,38 @@
           </table>
         </div>
 
+        <!-- v7.9：吊绳价格表（全局共享，就地编辑） -->
+        <div class="table-wrap" id="ropePriceWrap" style="margin-top:20px;">
+          <h3 style="font-size:14px;color:var(--brand-dark);margin-bottom:6px;">吊绳价格表 <span style="font-size:12px;color:var(--text-secondary);font-weight:400;">（全局共享，不随报价表切换；点击价格数字直接修改）</span></h3>
+          <table id="ropePriceTable">
+            <thead>
+              <tr>
+                <th>吊绳名称</th>
+                <!-- 动态档位表头 -->
+              </tr>
+            </thead>
+            <tbody>
+              <!-- 动态行 -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- v7.9：邮费价格表（全局共享，就地编辑） -->
+        <div class="table-wrap" id="shippingPriceWrap" style="margin-top:20px;">
+          <h3 style="font-size:14px;color:var(--brand-dark);margin-bottom:6px;">邮费价格表 <span style="font-size:12px;color:var(--text-secondary);font-weight:400;">（全局共享，不随报价表切换；点击数字直接修改）</span></h3>
+          <table id="shippingPriceTable">
+            <thead>
+              <tr>
+                <th>地区名称</th>
+                <!-- 动态档位表头 -->
+              </tr>
+            </thead>
+            <tbody>
+              <!-- 动态行 -->
+            </tbody>
+          </table>
+        </div>
+
         <div class="pagination" id="paginationBar">
           <button class="btn" id="prevPaper" disabled="">上一张</button>
           <span class="page-info" id="paperPageInfo">-</span>

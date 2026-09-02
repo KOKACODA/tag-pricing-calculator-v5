@@ -694,6 +694,9 @@ const els = {
   // v7.0：批量直接报价表
   batchDirectTable: document.getElementById("batchDirectTable"),
   batchDirectWrap: document.getElementById("batchDirectWrap"),
+  // v7.9：吊绳/邮费价格表（就地编辑）
+  ropePriceTable: document.getElementById("ropePriceTable"),
+  shippingPriceTable: document.getElementById("shippingPriceTable"),
   tableMeta: document.getElementById("tableMeta"),
   prevPaper: document.getElementById("prevPaper"),
   nextPaper: document.getElementById("nextPaper"),
@@ -1831,8 +1834,8 @@ function renderPriceTable() {
       <td>${s.maxArea}</td>
       ${tiers.map(t => {
         const v = s.prices[t];
-        if (v == null) return '<td><span class="price-missing">无该批量定价</span></td>';
-        return `<td>¥ ${formatMoney(Number(v))}</td>`;
+        if (v == null) return `<td class="price-cell price-editable" data-type="spec" data-code="${escapeHtml(s.code)}" data-tier="${t}" data-empty="1" title="点击填写价格"><span class="price-missing">无该批量定价</span></td>`;
+        return `<td class="price-cell price-editable" data-type="spec" data-code="${escapeHtml(s.code)}" data-tier="${t}" title="点击编辑价格">¥ ${formatMoney(Number(v))}</td>`;
       }).join("")}
     </tr>
   `).join("");
@@ -1848,8 +1851,8 @@ function renderPriceTable() {
       dcTheadRow.innerHTML = '<th>项目</th>' + dcTiers.map(t => `<th>${t}</th>`).join("");
       const dcTbody = els.directCoeffTable.querySelector("tbody");
       dcTbody.innerHTML = `
-        <tr><td><strong>最高倍数</strong></td>${dc.max.map(v => `<td>×${formatMoney(Number(v))}</td>`).join("")}</tr>
-        <tr><td><strong>最低倍数</strong></td>${dc.min.map(v => `<td>×${formatMoney(Number(v))}</td>`).join("")}</tr>
+        <tr><td><strong>最高倍数</strong></td>${dc.max.map((v, i) => `<td class="price-cell price-editable" data-type="dc-max" data-index="${i}" title="点击编辑最高倍数">×${formatMoney(Number(v))}</td>`).join("")}</tr>
+        <tr><td><strong>最低倍数</strong></td>${dc.min.map((v, i) => `<td class="price-cell price-editable" data-type="dc-min" data-index="${i}" title="点击编辑最低倍数">×${formatMoney(Number(v))}</td>`).join("")}</tr>
       `;
       els.directCoeffWrap.style.display = "";
     } else {
@@ -1870,11 +1873,11 @@ function renderPriceTable() {
       const bdTiers = Object.keys(bd.prices).map(Number).sort((a, b) => a - b);
       bdTheadRow.innerHTML = '<th>项目</th>' + bdTiers.map(t => `<th>${t} 张</th>`).join("");
       bdTbody.innerHTML = `
-        <tr class="bd-maxarea"><td><strong>最大面积（出血后）</strong></td><td colspan="${bdTiers.length}">${bd.maxArea} mm²</td></tr>
+        <tr class="bd-maxarea"><td><strong>最大面积（出血后）</strong></td><td class="price-cell price-editable" data-type="bd-maxarea" title="点击编辑最大面积" colspan="${bdTiers.length}">${bd.maxArea} mm²</td></tr>
         <tr><td><strong>批量价格</strong></td>${bdTiers.map(t => {
           const v = bd.prices[t];
-          if (v == null) return '<td><span class="price-missing">无该批量报价</span></td>';
-          return `<td>¥ ${formatMoney(Number(v))}</td>`;
+          if (v == null) return `<td class="price-cell price-editable" data-type="bd" data-tier="${t}" data-empty="1" title="点击填写价格"><span class="price-missing">无该批量报价</span></td>`;
+          return `<td class="price-cell price-editable" data-type="bd" data-tier="${t}" title="点击编辑价格">¥ ${formatMoney(Number(v))}</td>`;
         }).join("")}</tr>
       `;
       els.batchDirectWrap.style.display = "";
@@ -1907,12 +1910,198 @@ function renderPriceTable() {
           <td>${escapeHtml(c.name)}</td>
           ${tiers.map(t => {
             const v = c.prices[t];
-            if (v == null) return '<td><span class="price-missing">无该批量定价</span></td>';
-            return `<td>¥ ${formatMoney(Number(v))}</td>`;
+            if (v == null) return `<td class="price-cell price-editable" data-type="craft" data-craft-id="${escapeHtml(c.id)}" data-tier="${t}" data-empty="1" title="点击填写价格"><span class="price-missing">无该批量定价</span></td>`;
+            return `<td class="price-cell price-editable" data-type="craft" data-craft-id="${escapeHtml(c.id)}" data-tier="${t}" title="点击编辑价格">¥ ${formatMoney(Number(v))}</td>`;
           }).join("")}
         </tr>
       `).join("")
     : '<tr><td colspan="' + (tiers.length + 1) + '" style="text-align:center;color:var(--text-secondary);">该纸张暂无工艺配置</td></tr>';
+
+  // v7.9：渲染吊绳与邮费价格表（全局共享，不随报价表/纸张切换）
+  renderRopePriceTable();
+  renderShippingPriceTable();
+}
+
+// -------------------- v7.9 吊绳/邮费价格表渲染（就地编辑） --------------------
+function renderRopePriceTable() {
+  if (!els.ropePriceTable) return;
+  const tierKeys = ROPE_CONFIG.length ? Object.keys(ROPE_CONFIG[0].prices).map(Number).sort((a, b) => a - b) : [];
+  const theadRow = els.ropePriceTable.querySelector("thead tr");
+  theadRow.innerHTML = '<th>吊绳名称</th>' + tierKeys.map(t => `<th>${t} 张</th>`).join("");
+  const tbody = els.ropePriceTable.querySelector("tbody");
+  tbody.innerHTML = ROPE_CONFIG.map(r => `
+    <tr>
+      <td>${escapeHtml(r.name)}</td>
+      ${tierKeys.map(t => {
+        const v = r.prices[t];
+        if (v == null) return `<td class="price-cell price-editable" data-type="rope" data-rope-id="${escapeHtml(r.id)}" data-tier="${t}" data-empty="1" title="点击填写价格"><span class="price-missing">无</span></td>`;
+        return `<td class="price-cell price-editable" data-type="rope" data-rope-id="${escapeHtml(r.id)}" data-tier="${t}" title="点击编辑价格">¥ ${formatMoney(Number(v))}</td>`;
+      }).join("")}
+    </tr>
+  `).join("");
+}
+
+function renderShippingPriceTable() {
+  if (!els.shippingPriceTable) return;
+  const tierKeys = SHIPPING_CONFIG.length ? Object.keys(SHIPPING_CONFIG[0].basePrices).map(Number).sort((a, b) => a - b) : [];
+  const theadRow = els.shippingPriceTable.querySelector("thead tr");
+  theadRow.innerHTML = '<th>地区名称</th>' + tierKeys.map(t => `<th>${t} 张</th>`).join("") + '<th>小面积阈值</th><th>折扣系数</th>';
+  const tbody = els.shippingPriceTable.querySelector("tbody");
+  tbody.innerHTML = SHIPPING_CONFIG.map(s => `
+    <tr>
+      <td>${escapeHtml(s.name)}</td>
+      ${tierKeys.map(t => {
+        const v = s.basePrices[t];
+        if (v == null) return `<td class="price-cell price-editable" data-type="shipping" data-region-id="${escapeHtml(s.id)}" data-tier="${t}" data-empty="1" title="点击填写价格"><span class="price-missing">无</span></td>`;
+        return `<td class="price-cell price-editable" data-type="shipping" data-region-id="${escapeHtml(s.id)}" data-tier="${t}" title="点击编辑价格">¥ ${formatMoney(Number(v))}</td>`;
+      }).join("")}
+      <td class="price-cell price-editable" data-type="shipping-threshold" data-region-id="${escapeHtml(s.id)}" title="点击编辑小面积阈值">${s.smallAreaThreshold}</td>
+      <td class="price-cell price-editable" data-type="shipping-discount" data-region-id="${escapeHtml(s.id)}" title="点击编辑折扣系数">${s.discount}</td>
+    </tr>
+  `).join("");
+}
+
+// -------------------- v7.9 价格表就地编辑 --------------------
+let _editingCell = null;
+
+// 从单元格文本中提取首个数字（去掉 ¥、×、mm² 等符号）
+function extractNumericFromCell(text) {
+  const m = String(text || "").match(/-?\d+(?:\.\d+)?/);
+  return m ? m[0] : "";
+}
+
+function startCellEdit(cell) {
+  if (_editingCell) return; // 已有编辑进行中，忽略（blur 会负责提交）
+  const type = cell.dataset.type;
+  const isEmpty = cell.hasAttribute("data-empty");
+  const raw = extractNumericFromCell(cell.textContent);
+  const input = document.createElement("input");
+  input.type = "number";
+  input.step = "any";
+  input.min = type === "bd-maxarea" ? "1" : "0";
+  input.className = "price-cell-input";
+  input.value = isEmpty ? "" : raw;
+  input.dataset.type = type;
+  ["code", "tier", "craftId", "index", "ropeId", "regionId"].forEach(k => {
+    if (cell.dataset[k] !== undefined) input.dataset[k] = cell.dataset[k];
+  });
+  cell.textContent = "";
+  cell.appendChild(input);
+  _editingCell = { cell, input, type };
+  input.focus();
+  if (!isEmpty) input.select();
+  input.addEventListener("blur", commitCellEdit);
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+    else if (e.key === "Escape") { cancelCellEdit(); }
+  });
+}
+
+function applyPriceEdit(type, data, value) {
+  // 全局类型：吊绳 / 邮费（不依赖当前纸张）
+  if (type === "rope") {
+    const rope = ROPE_CONFIG.find(r => r.id === data.ropeId);
+    if (!rope) return false;
+    rope.prices[data.tier] = value;
+    saveToStorage("ropeConfig", ROPE_CONFIG);
+    return true;
+  }
+  if (type === "shipping" || type === "shipping-threshold" || type === "shipping-discount") {
+    const region = SHIPPING_CONFIG.find(s => s.id === data.regionId);
+    if (!region) return false;
+    if (type === "shipping") region.basePrices[data.tier] = value;
+    else if (type === "shipping-threshold") region.smallAreaThreshold = value;
+    else region.discount = value;
+    saveToStorage("shippingConfig", SHIPPING_CONFIG);
+    return true;
+  }
+
+  // 纸张相关类型
+  const paper = getPapersByPriceList(CURRENT_PRICE_LIST_ID)[currentPaperIndex];
+  if (!paper) return false;
+  let changed = false;
+  switch (type) {
+    case "spec": {
+      const spec = paper.specs.find(s => s.code === data.code);
+      if (spec) { spec.prices[data.tier] = value; changed = true; }
+      break;
+    }
+    case "craft": {
+      const crafts = CRAFT_CONFIG[paper.id];
+      const craft = crafts && crafts.find(c => c.id === data.craftId);
+      if (craft) { craft.prices[data.tier] = value; changed = true; }
+      break;
+    }
+    case "dc-max": {
+      const idx = Number(data.index);
+      if (paper.directCoeff && Array.isArray(paper.directCoeff.max)) {
+        paper.directCoeff.max[idx] = value; changed = true;
+      }
+      break;
+    }
+    case "dc-min": {
+      const idx = Number(data.index);
+      if (paper.directCoeff && Array.isArray(paper.directCoeff.min)) {
+        paper.directCoeff.min[idx] = value; changed = true;
+      }
+      break;
+    }
+    case "bd": {
+      if (paper.batchDirect && paper.batchDirect.prices) {
+        paper.batchDirect.prices[data.tier] = value; changed = true;
+      }
+      break;
+    }
+    case "bd-maxarea": {
+      if (paper.batchDirect) { paper.batchDirect.maxArea = value; changed = true; }
+      break;
+    }
+  }
+  if (changed) {
+    saveToStorage("paperConfig", PAPER_CONFIG);
+    if (type === "craft") saveToStorage("craftConfig", CRAFT_CONFIG);
+  }
+  return changed;
+}
+
+function commitCellEdit() {
+  if (!_editingCell) return;
+  const { input, type } = _editingCell;
+  _editingCell = null;
+  const valueStr = input.value.trim();
+  // 清空 → 设为 null（无该批量定价）
+  if (valueStr === "") {
+    if (applyPriceEdit(type, input.dataset, null)) {
+      renderPriceTable();
+      if (type === "rope") rebuildRopeUI();
+      onCalculate();
+      showToast("价格已清空");
+    } else {
+      renderPriceTable();
+    }
+    return;
+  }
+  const value = Number(valueStr);
+  if (isNaN(value) || value < 0) {
+    showToast("请输入非负数字");
+    renderPriceTable();
+    return;
+  }
+  if (applyPriceEdit(type, input.dataset, value)) {
+    renderPriceTable();
+    if (type === "rope") rebuildRopeUI();
+    onCalculate();
+    showToast("价格已更新");
+  } else {
+    renderPriceTable();
+  }
+}
+
+function cancelCellEdit(silent) {
+  if (!_editingCell) return;
+  _editingCell = null;
+  renderPriceTable();
+  if (!silent) showToast("已取消编辑");
 }
 
 // -------------------- Sheet 纸张选择器 --------------------
@@ -3689,9 +3878,17 @@ function importRopeExcel(file) {
   reader.readAsArrayBuffer(file);
 }
 
+function bindRopeEvents() {
+  if (!els.rope) return;
+  els.rope.querySelectorAll('input[name="rope"]').forEach(radio => {
+    radio.addEventListener("change", onCalculate);
+  });
+}
+
 function rebuildRopeUI() {
-  // 重新渲染吊绳选择区（沿用与初始化一致的默认选择逻辑）
+  // 重新渲染吊绳选择区（沿用与初始化一致的默认选择逻辑），并重新绑定实时计算事件
   els.rope.innerHTML = renderRopeRadios();
+  bindRopeEvents();
 }
 
 // -------------------- 邮费 Excel 导入 / 导出 / 模板 --------------------
@@ -3873,11 +4070,7 @@ function bindEvents() {
     if (!el) return;
     el.addEventListener("change", onCalculate);
   });
-  if (els.rope) {
-    els.rope.querySelectorAll('input[name="rope"]').forEach(radio => {
-      radio.addEventListener("change", onCalculate);
-    });
-  }
+  bindRopeEvents();
 
   // 纸张数量变化时重渲染纸张卡片再计算
   if (els.sheetCount) {
@@ -3888,6 +4081,17 @@ function bindEvents() {
   }
 
   if (els.searchInput) els.searchInput.addEventListener("input", debounce(renderPriceTable, 200));
+
+  // v7.9：价格表就地编辑（事件委托，点击价格单元格进入编辑）
+  [els.priceTable, els.craftTable, els.directCoeffTable, els.batchDirectTable, els.ropePriceTable, els.shippingPriceTable].forEach(table => {
+    if (!table) return;
+    table.addEventListener("click", e => {
+      const cell = e.target.closest(".price-editable");
+      if (!cell) return;
+      startCellEdit(cell);
+    });
+  });
+
   if (els.prevPaper) els.prevPaper.addEventListener("click", prevPaper);
   if (els.nextPaper) els.nextPaper.addEventListener("click", nextPaper);
   if (els.paperSelector) els.paperSelector.addEventListener("change", () => {

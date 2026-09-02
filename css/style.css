@@ -1447,6 +1447,31 @@
       font-weight: 600;
     }
 
+    /* v7.9：价格表就地编辑 */
+    .price-cell.price-editable {
+      cursor: pointer;
+      position: relative;
+      transition: background 0.15s;
+    }
+    .price-cell.price-editable:hover {
+      background: #e8f0fe;
+      box-shadow: inset 0 0 0 1px var(--brand);
+    }
+    .price-cell-input {
+      width: 100%;
+      min-width: 72px;
+      padding: 4px 6px;
+      border: 1px solid var(--brand);
+      border-radius: 6px;
+      font-size: 13px;
+      text-align: center;
+      box-sizing: border-box;
+    }
+    .price-cell-input:focus {
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(24, 95, 165, 0.2);
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
