@@ -1457,19 +1457,31 @@
       background: #e8f0fe;
       box-shadow: inset 0 0 0 1px var(--brand);
     }
+    /* v7.9.1：单元格进入编辑时去掉 padding，让 input 真正充满单元格，修复「0.00」被截断 */
+    .price-cell:has(.price-cell-input) {
+      padding: 0;
+      background: #fff;
+    }
     .price-cell-input {
       width: 100%;
-      min-width: 72px;
-      padding: 4px 6px;
-      border: 1px solid var(--brand);
-      border-radius: 6px;
+      min-width: 92px;
+      padding: 9px 10px;
+      border: 2px solid var(--brand);
+      border-radius: 8px;
       font-size: 13px;
       text-align: center;
       box-sizing: border-box;
+      background: #fff;
+      -moz-appearance: textfield;
+    }
+    .price-cell-input::-webkit-outer-spin-button,
+    .price-cell-input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
     }
     .price-cell-input:focus {
       outline: none;
-      box-shadow: 0 0 0 2px rgba(24, 95, 165, 0.2);
+      box-shadow: 0 0 0 3px rgba(24, 95, 165, 0.2);
     }
 
     table {

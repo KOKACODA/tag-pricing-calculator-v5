@@ -1982,6 +1982,9 @@ function startCellEdit(cell) {
   input.className = "price-cell-input";
   input.value = isEmpty ? "" : raw;
   input.dataset.type = type;
+  // v7.9.1：保存原数值与显示文本，用于 confirm 对话框的差异提示与取消时的恢复
+  input.dataset.originalValue = isEmpty ? "" : raw;
+  input.dataset.originalDisplay = cell.textContent.trim();
   ["code", "tier", "craftId", "index", "ropeId", "regionId"].forEach(k => {
     if (cell.dataset[k] !== undefined) input.dataset[k] = cell.dataset[k];
   });
@@ -2069,31 +2072,56 @@ function commitCellEdit() {
   const { input, type } = _editingCell;
   _editingCell = null;
   const valueStr = input.value.trim();
-  // 清空 → 设为 null（无该批量定价）
+  const originalStr = input.dataset.originalValue || "";
+  const originalDisplay = input.dataset.originalDisplay || "";
+
+  // v7.9.1：数值相等视为未改动（避免 "35.00" vs "35" 这种字符串差异误弹 confirm）
+  const origNum = originalStr === "" ? null : Number(originalStr);
+  const newNum = valueStr === "" ? null : Number(valueStr);
+  if (origNum === newNum) {
+    renderPriceTable();
+    return;
+  }
+
+  // 清空（原值非空）→ 弹确认后设为 null（无该批量定价）
   if (valueStr === "") {
-    if (applyPriceEdit(type, input.dataset, null)) {
-      renderPriceTable();
-      if (type === "rope") rebuildRopeUI();
-      onCalculate();
-      showToast("价格已清空");
+    const ok = window.confirm(`确认清空该价格？\n\n原值：${originalDisplay}\n新值：（无该批量定价）`);
+    if (ok) {
+      if (applyPriceEdit(type, input.dataset, null)) {
+        renderPriceTable();
+        if (type === "rope") rebuildRopeUI();
+        onCalculate();
+        showToast("价格已清空");
+      } else renderPriceTable();
     } else {
       renderPriceTable();
+      showToast("已取消修改");
     }
     return;
   }
+
   const value = Number(valueStr);
   if (isNaN(value) || value < 0) {
     showToast("请输入非负数字");
     renderPriceTable();
     return;
   }
-  if (applyPriceEdit(type, input.dataset, value)) {
-    renderPriceTable();
-    if (type === "rope") rebuildRopeUI();
-    onCalculate();
-    showToast("价格已更新");
+
+  // 有改动 → 弹 confirm 显示原值与新值，确认才落盘
+  const newDisplay = (type === "dc-max" || type === "dc-min")
+    ? "×" + formatMoney(value)
+    : (type === "bd-maxarea" ? value + " mm²" : "¥ " + formatMoney(value));
+  const ok = window.confirm("确认修改该价格？\n\n原值：" + originalDisplay + "\n新值：" + newDisplay);
+  if (ok) {
+    if (applyPriceEdit(type, input.dataset, value)) {
+      renderPriceTable();
+      if (type === "rope") rebuildRopeUI();
+      onCalculate();
+      showToast("价格已更新");
+    } else renderPriceTable();
   } else {
     renderPriceTable();
+    showToast("已取消修改");
   }
 }
 
