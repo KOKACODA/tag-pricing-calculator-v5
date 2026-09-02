@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v7.8.2 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v7.9.0 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -40,24 +40,26 @@ function throttle(fn, delay) {
 }
 
 /**
- * P1.4: SheetJS 懒加载 — 仅在需要时动态加载 CDN 脚本。
- * v7.4: 增加 SRI 完整性校验 + crossorigin，防止 CDN 投毒。
+ * v7.9: SheetJS 已本地化（js/vendor/xlsx.full.min.js，由 index.html 同步引入），
+ * XLSX 全局变量在业务脚本执行前即可用。本函数作为兜底：
+ *   - 若 XLSX 已存在（本地脚本加载成功）→ 立即 resolve；
+ *   - 若不存在（异常场景）→ 动态加载本地 vendor 文件，确保离线双击打开也能用。
  */
 let _sheetjsLoaded = false;
 let _sheetjsLoading = null;
 
-const SHEETJS_SRI = "sha384-QCIdq2UMVEoSRhR3ZWZwdz2/pivLowr+eokFMdYyukq7qI26VYRxFa4Nl6FKetmL";
-
 function loadSheetJS() {
+  if (typeof XLSX !== "undefined") {
+    _sheetjsLoaded = true;
+    return Promise.resolve();
+  }
   if (_sheetjsLoaded) return Promise.resolve();
   if (_sheetjsLoading) return _sheetjsLoading;
   _sheetjsLoading = new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = "https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js";
-    script.crossOrigin = "anonymous";
-    script.integrity = SHEETJS_SRI;
+    script.src = "js/vendor/xlsx.full.min.js";
     script.onload = () => { _sheetjsLoaded = true; _sheetjsLoading = null; resolve(); };
-    script.onerror = () => { _sheetjsLoading = null; reject(new Error("SheetJS CDN 加载失败（SRI 校验未通过）")); };
+    script.onerror = () => { _sheetjsLoading = null; reject(new Error("SheetJS 本地库加载失败")); };
     document.head.appendChild(script);
   });
   return _sheetjsLoading;
