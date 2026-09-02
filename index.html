@@ -6,11 +6,11 @@
   <meta name="googlebot" content="noindex, nofollow">
   <!-- P0 安全：CSP 策略（v7.4：移除 script-src unsafe-inline，内联事件已外置到 app.js） -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' cdn.sheetjs.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';">
-  <title>KOKALabel报价系统 v7.8.1</title>
-  <link rel="icon" type="image/x-icon" href="favicon.ico?v=7.8.1">
-  <link rel="icon" type="image/png" href="favicon.png?v=7.8.1">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=7.8.1">
-  <link rel="stylesheet" href="css/style.css?v=7.8.1-r2">
+  <title>KOKALabel报价系统 v7.8.2</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico?v=7.8.2">
+  <link rel="icon" type="image/png" href="favicon.png?v=7.8.2">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=7.8.2">
+  <link rel="stylesheet" href="css/style.css?v=7.8.2">
 </head>
 <body>
   <!-- 顶部导航 -->
@@ -518,6 +518,31 @@
           </div>
           <div id="shippingOverrideLabel" class="price-section-label" style="display:none;">修改邮费后报价</div>
           <div id="shippingOverrideCards" class="price-cards shipping-override-cards" style="display:none;"></div>
+
+          <!-- 报价记录保存 -->
+          <section class="quote-save-panel" aria-labelledby="quoteSaveTitle">
+            <div class="quote-save-heading">
+              <div>
+                <span class="quote-save-kicker">报价归档</span>
+                <h3 id="quoteSaveTitle">保存本次报价</h3>
+              </div>
+              <span class="quote-save-hint">客户名称留空时自动使用编号和时间</span>
+            </div>
+            <div class="quote-save-fields">
+              <label class="quote-save-field">
+                <span>客户名称 <small>选填</small></span>
+                <input type="text" id="quoteCustomerName" maxlength="60" placeholder="例如：海成服饰" autocomplete="off" />
+              </label>
+              <label class="quote-save-field quote-save-note-field">
+                <span>订单备注 <small>选填，最多 500 字</small></span>
+                <textarea id="quoteOrderNote" maxlength="500" rows="2" placeholder="例如：秋季吊牌订单、交期要求、特殊说明"></textarea>
+              </label>
+            </div>
+            <div class="quote-save-actions">
+              <button type="button" class="btn quote-save-primary" id="saveQuoteBtn" disabled>保存报价</button>
+              <button type="button" class="btn secondary" id="openQuoteHistoryBtn">查看报价记录</button>
+            </div>
+          </section>
         </div>
       </div>
     </section>
@@ -845,19 +870,22 @@
         </div>
 
         <div class="tab-panel" id="panel-history">
-          <h3 style="font-size:14px;color:var(--brand-dark);margin:6px 0 10px;">历史报价记录</h3>
-          <p style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;">每次点击"保存报价"后将出现在这里；目前为占位，后续对接数据库持久化。</p>
-          <table class="data-table" id="historyTable" style="display: none;">
-            <thead>
-              <tr><th>时间</th><th>尺寸</th><th>纸张</th><th>档位</th><th>成本</th><th>建议价</th><th>操作</th></tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-          <div class="empty-state" id="historyEmpty" style="display: block;">暂无报价记录。</div>
-          <div class="btn-group">
-            <button class="btn secondary sm" id="addHistoryPlaceholderBtn">+ 添加示例记录</button>
-            <button class="btn danger sm" id="clearHistoryBtn">清空记录</button>
+          <div class="history-panel-heading">
+            <div>
+              <h3>历史报价记录</h3>
+              <p>保存的是当时报价快照；重新载入参数后将按当前价格重新计算。</p>
+            </div>
+            <button class="btn danger-outline sm" id="clearHistoryBtn">清空全部记录</button>
           </div>
+          <div class="history-table-wrap">
+            <table class="data-table history-table" id="historyTable" style="display: none;">
+              <thead>
+                <tr><th>客户 / 编号</th><th>保存时间</th><th>模式 / 报价表</th><th>档位</th><th>成本</th><th>建议价</th><th>操作</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="historyEmpty" style="display: block;">暂无报价记录。</div>
         </div>
 
         <div class="tab-panel" id="panel-cloud">
@@ -926,7 +954,7 @@
           <div class="setting-row">
             <div class="setting-info">
               <div class="setting-label">当前版本</div>
-              <div class="setting-desc">KOKALabel报价系统 v7.8.1</div>
+              <div class="setting-desc">KOKALabel报价系统 v7.8.2</div>
             </div>
             <div class="setting-control">
               <span class="placeholder-badge">正式版</span>
@@ -970,10 +998,28 @@
     <!-- 页面4：数据管理 + 页面5：更多 已合并到 个人主页（page-profile）中 -->
   </main>
 
+  <!-- 报价历史详情 -->
+  <dialog class="history-dialog" id="historyDetailDialog" aria-labelledby="historyDetailTitle">
+    <div class="history-dialog-shell">
+      <header class="history-dialog-header">
+        <div>
+          <span class="history-dialog-kicker">保存时的报价快照</span>
+          <h2 id="historyDetailTitle">报价详情</h2>
+        </div>
+        <button type="button" class="history-dialog-close" id="historyDetailCloseBtn" aria-label="关闭报价详情">×</button>
+      </header>
+      <div class="history-dialog-content" id="historyDetailContent"></div>
+      <footer class="history-dialog-footer">
+        <button type="button" class="btn" id="historyDetailLoadBtn">重新载入参数</button>
+        <button type="button" class="btn secondary" id="historyDetailCancelBtn">关闭</button>
+      </footer>
+    </div>
+  </dialog>
+
   <!-- 提示条 -->
   <div class="toast" id="toast"></div>
 
   <!-- P1.4: SheetJS defer 备用加载（不阻塞渲染），app.js 中 loadSheetJS() 为按需加载兜底 -->
-  <script src="js/data.js?v=7.8.1-r2"></script>
-  <script src="js/app.js?v=7.8.1-r2"></script>
+  <script src="js/data.js?v=7.8.2"></script>
+  <script src="js/app.js?v=7.8.2"></script>
 </body></html>

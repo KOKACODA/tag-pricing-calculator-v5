@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v7.8 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v7.8.2 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -747,8 +747,17 @@ const els = {
   clearSnapshotBtn: document.getElementById("clearSnapshotBtn"),
   historyTable: document.getElementById("historyTable"),
   historyEmpty: document.getElementById("historyEmpty"),
-  addHistoryPlaceholderBtn: document.getElementById("addHistoryPlaceholderBtn"),
   clearHistoryBtn: document.getElementById("clearHistoryBtn"),
+  quoteCustomerName: document.getElementById("quoteCustomerName"),
+  quoteOrderNote: document.getElementById("quoteOrderNote"),
+  saveQuoteBtn: document.getElementById("saveQuoteBtn"),
+  openQuoteHistoryBtn: document.getElementById("openQuoteHistoryBtn"),
+  historyDetailDialog: document.getElementById("historyDetailDialog"),
+  historyDetailTitle: document.getElementById("historyDetailTitle"),
+  historyDetailContent: document.getElementById("historyDetailContent"),
+  historyDetailLoadBtn: document.getElementById("historyDetailLoadBtn"),
+  historyDetailCloseBtn: document.getElementById("historyDetailCloseBtn"),
+  historyDetailCancelBtn: document.getElementById("historyDetailCancelBtn"),
   // 模式切换
   modeBtns: document.querySelectorAll(".mode-btn"),
   // 报价结果中需要模式控制的行
@@ -761,6 +770,7 @@ const els = {
 let currentPaperIndex = 2;
 let toastTimer = null;
 let sheetsState = [];
+let activeHistoryRecordId = null;
 // 计算模式：默认直接系数计算（v6.1 起），持久化到 localStorage
 let calcMode = loadFromStorage("currentCalcMode", "direct"); // "standard" | "direct"
 let defaultQuoteVisible = loadFromStorage("defaultQuoteVisible", true) !== false;
@@ -1491,6 +1501,7 @@ function onCalculate() {
   // -------------------- 临时系数 & 邮费快速修改 --------------------
   // 缓存本次计算结果供临时系数/邮费修改使用
   _lastResult = result;
+  if (els.saveQuoteBtn) els.saveQuoteBtn.disabled = false;
 
   // 临时系数输入栏：直接系数模式显示每纸独立临时直接系数，标准模式显示统一临时毛利系数
   if (calcMode === "direct") {
@@ -1781,6 +1792,7 @@ function clearResult() {
   els.priceCards.innerHTML = "";
   // 清理临时毛利系数 & 邮费快速修改
   _lastResult = null;
+  if (els.saveQuoteBtn) els.saveQuoteBtn.disabled = true;
   if (els.customCoeffBar) els.customCoeffBar.style.display = "none";
   if (els.customPriceCard) { els.customPriceCard.style.display = "none"; els.customPriceCard.innerHTML = ""; }
   if (els.tempCoeffBar) els.tempCoeffBar.style.display = "none";
@@ -2070,22 +2082,27 @@ function resetCustomerLevels() {
 }
 
 // -------------------- 模式切换 --------------------
-function switchCalcMode(mode) {
-  calcMode = mode;
-  saveToStorage("currentCalcMode", mode);
+function syncCalcModeUI() {
   els.modeBtns.forEach(btn => {
-    btn.classList.toggle("active", btn.dataset.mode === mode);
+    btn.classList.toggle("active", btn.dataset.mode === calcMode);
   });
   // 直接系数模式隐藏吊绳和邮费输入区域
   const ropeGroup = els.rope ? els.rope.closest(".form-group") : null;
   const regionGroup = els.region ? els.region.closest(".form-group") : null;
-  if (mode === "direct") {
+  if (calcMode === "direct") {
     if (ropeGroup) ropeGroup.style.display = "none";
     if (regionGroup) regionGroup.style.display = "none";
   } else {
     if (ropeGroup) ropeGroup.style.display = "";
     if (regionGroup) regionGroup.style.display = "";
   }
+  applyDefaultQuoteVisibility();
+}
+
+function switchCalcMode(mode) {
+  calcMode = mode === "standard" ? "standard" : "direct";
+  saveToStorage("currentCalcMode", calcMode);
+  syncCalcModeUI();
   // v6.14：重新渲染纸张卡片，刷新无直接系数提示（标准报价模式隐藏提示）
   renderSheets();
   onCalculate();
@@ -2348,48 +2365,157 @@ function clearSnapshots() {
 
 // -------------------- 报价历史 --------------------
 function getHistory() {
-  return loadFromStorage("history", []);
+  const history = loadFromStorage("history", []);
+  return Array.isArray(history) ? history : [];
 }
 
 function saveHistory(list) {
   saveToStorage("history", list);
 }
 
-function addHistoryPlaceholder() {
-  const list = getHistory();
-  list.unshift({
+function collectCurrentQuoteInputs() {
+  return {
+    priceListId: CURRENT_PRICE_LIST_ID,
+    mode: calcMode,
+    sheetCount: sheetsState.length,
+    tier: Number(els.tier?.value || 0),
+    sheets: cloneQuoteData(sheetsState),
+    ropeId: els.rope?.querySelector('input[name="rope"]:checked')?.value || "",
+    regionId: els.region?.value || "",
+    customCoefficient: els.customCoeffInput?.value.trim() || "",
+    shippingOverride: els.shippingOverrideInput?.value.trim() || "",
+    tempCoefficients: els.tempCoeffInputs
+      ? Array.from(els.tempCoeffInputs.querySelectorAll(".temp-coeff-input")).map(input => input.value)
+      : []
+  };
+}
+
+function saveCurrentQuote() {
+  if (!_lastResult) {
+    showToast("请先完成有效报价，再保存记录");
+    return;
+  }
+
+  const createdAt = new Date();
+  const inputs = collectCurrentQuoteInputs();
+  const selectedRope = ROPE_CONFIG.find(item => item.id === inputs.ropeId);
+  const selectedRegion = SHIPPING_CONFIG.find(item => item.id === inputs.regionId);
+  const priceList = getCurrentPriceList() || {};
+  const record = buildQuoteHistoryRecord({
     id: generateId(),
-    createdAt: new Date().toISOString(),
-    size: "55 × 30",
-    paper: "1号报价表-3",
-    tier: 1000,
-    cost: 45.5,
-    price: 59.15
+    createdAt,
+    customerName: els.quoteCustomerName?.value || "",
+    note: els.quoteOrderNote?.value || "",
+    mode: calcMode,
+    priceList: { id: priceList.id || "", name: priceList.name || "" },
+    inputs,
+    result: _lastResult,
+    ropeName: selectedRope?.name || "",
+    regionName: selectedRegion?.name || ""
   });
+
+  const list = getHistory();
+  list.unshift(record);
   saveHistory(list);
+
+  if (!getHistory().some(item => item.id === record.id)) {
+    showToast("报价保存失败：浏览器本地空间可能已满");
+    return;
+  }
+
   renderHistory();
-  showToast("已添加示例记录");
+  showToast(`报价已保存：${record.title}`);
+}
+
+function getHistoryRecordCost(record) {
+  const value = record?.snapshot?.cost ?? record?.cost;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function getHistoryRecordPrimaryPrice(record) {
+  const levels = record?.snapshot?.pricesByLevel;
+  const value = Array.isArray(levels) && levels.length ? levels[0]?.price : record?.price;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function getHistoryRecordTier(record) {
+  const value = record?.inputs?.tier ?? record?.snapshot?.tier ?? record?.tier;
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : null;
+}
+
+function formatHistoryMoney(value, emptyText = "—") {
+  return value == null || !Number.isFinite(Number(value)) ? emptyText : "¥ " + formatMoney(Number(value));
+}
+
+function formatHistoryDate(value) {
+  const date = new Date(value);
+  return isNaN(date.getTime()) ? "未知时间" : date.toLocaleString();
+}
+
+function getHistoryModeName(record) {
+  return record?.mode === "direct" ? "直接系数" : "标准报价";
+}
+
+function canReloadHistoryRecord(record) {
+  return !!(record?.inputs && Array.isArray(record.inputs.sheets) && record.inputs.sheets.length);
 }
 
 function renderHistory() {
   const list = getHistory();
+  if (!els.historyTable || !els.historyEmpty) return;
   const tbody = els.historyTable.querySelector("tbody");
   els.historyEmpty.style.display = list.length ? "none" : "block";
   els.historyTable.style.display = list.length ? "table" : "none";
-  tbody.innerHTML = list.map(h => `
-    <tr>
-      <td>${new Date(h.createdAt).toLocaleString()}</td>
-      <td>${escapeHtml(h.size)}</td>
-      <td>${escapeHtml(h.paper)}</td>
-      <td>${h.tier} 张</td>
-      <td>¥ ${formatMoney(h.cost)}</td>
-      <td>¥ ${formatMoney(h.price)}</td>
-      <td><button class="btn danger sm" data-action="delete-history" data-id="${h.id}">删除</button></td>
-    </tr>
-  `).join("");
+  tbody.innerHTML = list.map(h => {
+    const title = h.title || h.customerName || h.recordNo || "历史报价";
+    const recordNo = h.recordNo || h.id || "旧版记录";
+    const tier = getHistoryRecordTier(h);
+    const priceListName = h.priceList?.name || h.paper || "旧版报价表";
+    const note = String(h.note || "").trim();
+    const reloadable = canReloadHistoryRecord(h);
+    return `
+      <tr>
+        <td>
+          <span class="history-record-title">${escapeHtml(title)}</span>
+          <span class="history-record-sub">${escapeHtml(recordNo)}</span>
+          ${note ? `<span class="history-record-note" title="${escapeHtml(note)}">${escapeHtml(note)}</span>` : ""}
+        </td>
+        <td>${escapeHtml(formatHistoryDate(h.createdAt))}</td>
+        <td>
+          <span class="history-mode-badge">${escapeHtml(getHistoryModeName(h))}</span>
+          <span class="history-record-sub">${escapeHtml(priceListName)}</span>
+        </td>
+        <td>${tier == null ? "—" : tier + " 张"}</td>
+        <td>${formatHistoryMoney(getHistoryRecordCost(h))}</td>
+        <td>${formatHistoryMoney(getHistoryRecordPrimaryPrice(h))}</td>
+        <td>
+          <div class="history-action-group">
+            <button class="btn sm" data-action="view-history" data-id="${escapeHtml(h.id)}">查看</button>
+            <button class="btn secondary sm" data-action="load-history" data-id="${escapeHtml(h.id)}"${reloadable ? "" : " disabled title=\"旧版记录没有完整参数\""}>载入</button>
+            <button class="btn danger sm" data-action="delete-history" data-id="${escapeHtml(h.id)}">删除</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join("");
+
+  tbody.querySelectorAll("[data-action='view-history']").forEach(btn => {
+    btn.addEventListener("click", () => showHistoryDetail(btn.dataset.id));
+  });
+
+  tbody.querySelectorAll("[data-action='load-history']:not([disabled])").forEach(btn => {
+    btn.addEventListener("click", () => loadHistoryParameters(btn.dataset.id));
+  });
 
   tbody.querySelectorAll("[data-action='delete-history']").forEach(btn => {
     btn.addEventListener("click", () => {
+      const item = getHistory().find(x => x.id === btn.dataset.id);
+      if (!item) return;
+      const title = item.title || item.customerName || item.recordNo || "该报价";
+      if (!confirm(`确定删除报价记录「${title}」？`)) return;
       const next = getHistory().filter(x => x.id !== btn.dataset.id);
       saveHistory(next);
       renderHistory();
@@ -2398,10 +2524,209 @@ function renderHistory() {
   });
 }
 
+function showHistoryDetail(recordId) {
+  const record = getHistory().find(item => item.id === recordId);
+  if (!record || !els.historyDetailDialog || !els.historyDetailContent) return;
+  activeHistoryRecordId = record.id;
+
+  const title = record.title || record.customerName || record.recordNo || "历史报价";
+  const recordNo = record.recordNo || record.id || "旧版记录";
+  const snapshot = record.snapshot || {};
+  const sheets = Array.isArray(snapshot.sheetDetails) ? snapshot.sheetDetails : [];
+  const levels = Array.isArray(snapshot.pricesByLevel) ? snapshot.pricesByLevel : [];
+  const tier = getHistoryRecordTier(record);
+  const cost = getHistoryRecordCost(record);
+  const legacyPaper = record.paper || "";
+  const legacySize = record.size || "";
+
+  if (els.historyDetailTitle) els.historyDetailTitle.textContent = title;
+
+  const sheetHtml = sheets.length
+    ? sheets.map((sheet, index) => {
+        const crafts = Array.isArray(sheet.crafts) && sheet.crafts.length
+          ? "工艺：" + sheet.crafts.map(craft => `${craft.name}${craft.price == null ? "（缺价）" : " ¥" + formatMoney(Number(craft.price))}`).join("、")
+          : "无附加工艺";
+        return `
+          <div class="history-sheet-item">
+            <div class="history-sheet-main">
+              <strong>纸张 ${index + 1} · ${escapeHtml(sheet.paperName || "未命名纸张")}</strong>
+              <span>${escapeHtml(String(sheet.width || "—"))} × ${escapeHtml(String(sheet.length || "—"))} mm · ${escapeHtml(sheet.code || "无代码")} · ${escapeHtml(crafts)}</span>
+            </div>
+            <span class="history-sheet-price">${formatHistoryMoney(sheet.unitPrice, "缺价")}</span>
+          </div>
+        `;
+      }).join("")
+    : `<div class="history-sheet-item"><div class="history-sheet-main"><strong>${escapeHtml(legacyPaper || "旧版记录")}</strong><span>${escapeHtml(legacySize || "没有保存详细纸张参数")}</span></div></div>`;
+
+  const levelHtml = levels.length
+    ? levels.map(level => `
+        <div class="history-level-item">
+          <strong>${escapeHtml(level.levelName || "客户报价")}</strong>
+          <span class="history-level-price">${formatHistoryMoney(level.price, "部分缺价")}</span>
+        </div>
+      `).join("")
+    : `<div class="history-level-item"><strong>建议价</strong><span class="history-level-price">${formatHistoryMoney(record.price)}</span></div>`;
+
+  const costRows = [
+    ["纸张原价合计", snapshot.paperOriginalTotal],
+    ["纸张折后价合计", snapshot.paperTotal],
+    ["工艺费用", (Number(snapshot.craftTotal) || 0) + (Number(snapshot.batchDirectCraftTotal) || 0)],
+    [snapshot.ropeName ? `吊绳 · ${snapshot.ropeName}` : "吊绳费用", snapshot.ropePrice],
+    [snapshot.regionName ? `邮费 · ${snapshot.regionName}` : "邮费", snapshot.shippingPrice]
+  ].filter(([, value]) => value != null);
+
+  els.historyDetailContent.innerHTML = `
+    <div class="history-detail-meta">
+      <div class="history-detail-meta-item"><span>记录编号</span><strong>${escapeHtml(recordNo)}</strong></div>
+      <div class="history-detail-meta-item"><span>保存时间</span><strong>${escapeHtml(formatHistoryDate(record.createdAt))}</strong></div>
+      <div class="history-detail-meta-item"><span>计算模式</span><strong>${escapeHtml(getHistoryModeName(record))}</strong></div>
+      <div class="history-detail-meta-item"><span>报价表</span><strong>${escapeHtml(record.priceList?.name || legacyPaper || "旧版报价表")}</strong></div>
+      <div class="history-detail-meta-item"><span>批量档位</span><strong>${tier == null ? "—" : tier + " 张"}</strong></div>
+      <div class="history-detail-meta-item"><span>客户名称</span><strong>${escapeHtml(record.customerName || "未填写")}</strong></div>
+    </div>
+    <section class="history-detail-section">
+      <h3>订单备注</h3>
+      <div class="history-note-content">${escapeHtml(record.note || "未填写备注")}</div>
+    </section>
+    <section class="history-detail-section">
+      <h3>纸张与工艺</h3>
+      <div class="history-sheet-list">${sheetHtml}</div>
+    </section>
+    <section class="history-detail-section">
+      <h3>成本快照</h3>
+      ${costRows.map(([label, value]) => `<div class="history-cost-row"><span>${escapeHtml(label)}</span><strong>${formatHistoryMoney(Number(value))}</strong></div>`).join("")}
+      <div class="history-cost-row total"><span>成本合计</span><strong>${snapshot.costIncomplete ? "部分缺价" : formatHistoryMoney(cost)}</strong></div>
+    </section>
+    <section class="history-detail-section">
+      <h3>保存时客户报价</h3>
+      <div class="history-level-list">${levelHtml}</div>
+    </section>
+  `;
+
+  if (els.historyDetailLoadBtn) {
+    els.historyDetailLoadBtn.disabled = !canReloadHistoryRecord(record);
+    els.historyDetailLoadBtn.title = canReloadHistoryRecord(record) ? "按当前价格重新计算" : "旧版记录没有完整参数";
+  }
+  if (typeof els.historyDetailDialog.showModal === "function") {
+    els.historyDetailDialog.showModal();
+  } else {
+    els.historyDetailDialog.setAttribute("open", "");
+  }
+}
+
+function closeHistoryDetail() {
+  activeHistoryRecordId = null;
+  if (!els.historyDetailDialog) return;
+  if (typeof els.historyDetailDialog.close === "function" && els.historyDetailDialog.open) {
+    els.historyDetailDialog.close();
+  } else {
+    els.historyDetailDialog.removeAttribute("open");
+  }
+}
+
+function loadHistoryParameters(recordId) {
+  const record = getHistory().find(item => item.id === recordId);
+  if (!record || !canReloadHistoryRecord(record)) {
+    showToast("该记录没有可重新载入的完整参数");
+    return;
+  }
+
+  const inputs = record.inputs;
+  const priceListId = inputs.priceListId || record.priceList?.id;
+  if (!PRICE_LISTS.some(item => item.id === priceListId)) {
+    showToast("原报价表已不存在，只能查看保存时快照");
+    return;
+  }
+
+  const papers = getPapersByPriceList(priceListId);
+  const paperIds = new Set(papers.map(paper => paper.id));
+  const missingPaper = inputs.sheets.find(sheet => !paperIds.has(sheet.paperId));
+  if (missingPaper) {
+    showToast("原报价中的纸张已不存在，只能查看保存时快照");
+    return;
+  }
+
+  const missingCraft = inputs.sheets.some(sheet => {
+    const availableIds = new Set((CRAFT_CONFIG[sheet.paperId] || []).map(craft => craft.id));
+    return (sheet.craftIds || []).some(craftId => !availableIds.has(craftId));
+  });
+  if (missingCraft) {
+    showToast("原报价中的工艺已不存在，只能查看保存时快照");
+    return;
+  }
+
+  const availableTiers = new Set();
+  papers.forEach(paper => paper.specs.forEach(spec => Object.keys(spec.prices).forEach(tier => availableTiers.add(Number(tier)))));
+  if (!availableTiers.has(Number(inputs.tier))) {
+    showToast("原报价档位已不存在，只能查看保存时快照");
+    return;
+  }
+
+  if (inputs.mode === "standard") {
+    if (!ROPE_CONFIG.some(item => item.id === inputs.ropeId) || !SHIPPING_CONFIG.some(item => item.id === inputs.regionId)) {
+      showToast("原吊绳或收货地区已不存在，只能查看保存时快照");
+      return;
+    }
+  }
+
+  setCurrentPriceList(priceListId);
+  renderPriceListSelector();
+  currentPaperIndex = Math.max(0, papers.findIndex(paper => paper.id === inputs.sheets[0].paperId));
+  calcMode = inputs.mode === "standard" ? "standard" : "direct";
+  saveToStorage("currentCalcMode", calcMode);
+  syncCalcModeUI();
+
+  const restoredSheets = cloneQuoteData(inputs.sheets).map(sheet => ({
+    paperId: sheet.paperId,
+    craftIds: Array.isArray(sheet.craftIds) ? sheet.craftIds.slice() : [],
+    width: String(sheet.width || ""),
+    length: String(sheet.length || ""),
+    sizeType: sheet.sizeType || "single",
+    manualCode: sheet.manualCode || null
+  }));
+  if (els.sheetCount) els.sheetCount.value = String(restoredSheets.length);
+  sheetsState = restoredSheets;
+  renderSheets();
+  if (els.tier) els.tier.value = String(inputs.tier);
+
+  const ropeInput = els.rope
+    ? Array.from(els.rope.querySelectorAll('input[name="rope"]')).find(input => input.value === inputs.ropeId)
+    : null;
+  if (ropeInput) ropeInput.checked = true;
+  if (els.region && inputs.regionId) els.region.value = inputs.regionId;
+  if (els.customCoeffInput) els.customCoeffInput.value = inputs.customCoefficient || "";
+  if (els.shippingOverrideInput) els.shippingOverrideInput.value = inputs.shippingOverride || "";
+
+  onCalculate();
+
+  if (calcMode === "direct" && Array.isArray(inputs.tempCoefficients) && els.tempCoeffInputs) {
+    const coeffInputs = els.tempCoeffInputs.querySelectorAll(".temp-coeff-input");
+    inputs.tempCoefficients.forEach((value, index) => {
+      if (coeffInputs[index] && !coeffInputs[index].disabled) coeffInputs[index].value = value;
+    });
+    renderTempCoeffResults();
+  }
+
+  if (els.quoteCustomerName) els.quoteCustomerName.value = record.customerName || "";
+  if (els.quoteOrderNote) els.quoteOrderNote.value = record.note || "";
+  renderPriceTable();
+  closeHistoryDetail();
+  switchPage("calculator");
+  document.getElementById("page-calculator")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  showToast("已载入历史参数，并按当前价格重新计算");
+}
+
+function openQuoteHistoryPanel() {
+  switchPage("profile");
+  switchTab("history");
+  document.getElementById("panel-history")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function clearHistory() {
   if (!confirm("确定清空所有报价历史？")) return;
   saveHistory([]);
   renderHistory();
+  closeHistoryDetail();
   showToast("历史已清空");
 }
 
@@ -3633,8 +3958,25 @@ function bindEvents() {
   if (els.downloadShippingTemplateBtn) els.downloadShippingTemplateBtn.addEventListener("click", downloadShippingTemplate);
   if (els.createSnapshotBtn) els.createSnapshotBtn.addEventListener("click", createSnapshot);
   if (els.clearSnapshotBtn) els.clearSnapshotBtn.addEventListener("click", clearSnapshots);
-  if (els.addHistoryPlaceholderBtn) els.addHistoryPlaceholderBtn.addEventListener("click", addHistoryPlaceholder);
   if (els.clearHistoryBtn) els.clearHistoryBtn.addEventListener("click", clearHistory);
+  if (els.saveQuoteBtn) els.saveQuoteBtn.addEventListener("click", saveCurrentQuote);
+  if (els.openQuoteHistoryBtn) els.openQuoteHistoryBtn.addEventListener("click", openQuoteHistoryPanel);
+  if (els.historyDetailLoadBtn) {
+    els.historyDetailLoadBtn.addEventListener("click", () => {
+      if (activeHistoryRecordId) loadHistoryParameters(activeHistoryRecordId);
+    });
+  }
+  [els.historyDetailCloseBtn, els.historyDetailCancelBtn].forEach(btn => {
+    if (btn) btn.addEventListener("click", closeHistoryDetail);
+  });
+  if (els.historyDetailDialog) {
+    els.historyDetailDialog.addEventListener("click", event => {
+      if (event.target === els.historyDetailDialog) closeHistoryDetail();
+    });
+    els.historyDetailDialog.addEventListener("close", () => {
+      activeHistoryRecordId = null;
+    });
+  }
 
   // 点击页面其他区域关闭纸张材质下拉
   document.addEventListener("click", () => closeAllPaperDropdowns());
@@ -3713,19 +4055,7 @@ function bindEvents() {
 
   // 同步直接系数模式按钮状态（默认直接系数模式）
   try {
-    els.modeBtns.forEach(btn => {
-      btn.classList.toggle("active", btn.dataset.mode === calcMode);
-    });
-    // 同步直接系数模式下吊绳/邮费输入区域的显隐
-    const ropeGroup = els.rope ? els.rope.closest(".form-group") : null;
-    const regionGroup = els.region ? els.region.closest(".form-group") : null;
-    if (calcMode === "direct") {
-      if (ropeGroup) ropeGroup.style.display = "none";
-      if (regionGroup) regionGroup.style.display = "none";
-    } else {
-      if (ropeGroup) ropeGroup.style.display = "";
-      if (regionGroup) regionGroup.style.display = "";
-    }
+    syncCalcModeUI();
   } catch (e) { console.error("[init] 模式同步失败:", e); }
 
   // 应用个人主页的默认纸张材质设置
