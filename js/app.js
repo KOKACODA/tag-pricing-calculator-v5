@@ -1715,20 +1715,43 @@ function confirmManualShipping() {
 /**
  * 渲染临时毛利系数报价卡片
  */
+/**
+ * v8.1：读取临时毛利系数与邮费快速修改的当前输入值。
+ */
+function getOverrideValues() {
+  const coeffRaw = els.customCoeffInput ? els.customCoeffInput.value.trim() : "";
+  const coeff = parseFloat(coeffRaw);
+  const hasCoeff = !!coeffRaw && !isNaN(coeff) && coeff >= 1;
+  const shipRaw = els.shippingOverrideInput ? els.shippingOverrideInput.value.trim() : "";
+  const newShipping = parseFloat(shipRaw);
+  const hasShipOverride = !!shipRaw && !isNaN(newShipping) && newShipping >= 0;
+  return { coeff, newShipping, hasCoeff, hasShipOverride };
+}
+
 function renderCustomCoeffCard() {
   if (!els.customPriceCard || !_lastResult) return;
-  const raw = els.customCoeffInput ? els.customCoeffInput.value.trim() : "";
-  const coeff = parseFloat(raw);
-  if (!raw || isNaN(coeff) || coeff < 1) {
+  const { coeff, newShipping, hasCoeff, hasShipOverride } = getOverrideValues();
+  if (!hasCoeff) {
     els.customPriceCard.style.display = "none";
     els.customPriceCard.innerHTML = "";
     return;
   }
-  const price = _lastResult.cost * coeff;
+  let price;
+  let label;
+  if (hasShipOverride) {
+    // v8.1：同时填写了邮费快速修改 → 先用新邮费重算总成本，再乘临时系数
+    const origShipping = _lastResult.shippingPrice || 0;
+    const newCost = _lastResult.cost - origShipping + newShipping;
+    price = newCost * coeff;
+    label = `临时系数 ${coeff} · 新邮费 ¥${formatMoney(newShipping)}`;
+  } else {
+    price = _lastResult.cost * coeff;
+    label = `临时系数 ${coeff}`;
+  }
   els.customPriceCard.innerHTML = `
     <div class="price-card custom-coeff">
       <span class="coeff-badge">×${coeff}</span>
-      <div class="level-name">临时系数 ${coeff}</div>
+      <div class="level-name">${label}</div>
       <div class="level-price">${_lastResult.costIncomplete
         ? '<span class="price-missing">部分缺价</span>'
         : formatMoney(price) + '<span class="unit">元</span>'}</div>
@@ -1892,10 +1915,16 @@ function renderTempCoeffResults() {
  */
 function renderShippingOverrideCards() {
   if (!els.shippingOverrideCards || !_lastResult) return;
-  const raw = els.shippingOverrideInput ? els.shippingOverrideInput.value.trim() : "";
-  const newShipping = parseFloat(raw);
+  const { newShipping, hasCoeff, hasShipOverride } = getOverrideValues();
   // 没输入或无效值时隐藏
-  if (!raw || isNaN(newShipping) || newShipping < 0) {
+  if (!hasShipOverride) {
+    els.shippingOverrideCards.style.display = "none";
+    els.shippingOverrideLabel.style.display = "none";
+    els.shippingOverrideCards.innerHTML = "";
+    return;
+  }
+  // v8.1：同时填写了临时毛利系数时，隐藏邮费修改卡片（合并结果由临时系数卡片展示）
+  if (hasCoeff) {
     els.shippingOverrideCards.style.display = "none";
     els.shippingOverrideLabel.style.display = "none";
     els.shippingOverrideCards.innerHTML = "";
@@ -4400,18 +4429,26 @@ function bindEvents() {
   });
 
   // 临时毛利系数：输入时实时渲染报价卡片（不触发 onCalculate）
+  // v8.1：两个输入联动，任一变化都同时刷新临时系数卡片与邮费修改卡片
   if (els.customCoeffInput) {
-    els.customCoeffInput.addEventListener("input", renderCustomCoeffCard);
+    els.customCoeffInput.addEventListener("input", () => {
+      renderCustomCoeffCard();
+      renderShippingOverrideCards();
+    });
   }
 
   // 邮费快速修改：输入时实时渲染修改后报价卡片
   if (els.shippingOverrideInput) {
-    els.shippingOverrideInput.addEventListener("input", renderShippingOverrideCards);
+    els.shippingOverrideInput.addEventListener("input", () => {
+      renderCustomCoeffCard();
+      renderShippingOverrideCards();
+    });
   }
   // 清除邮费修改
   if (els.shippingOverrideClear) {
     els.shippingOverrideClear.addEventListener("click", () => {
       if (els.shippingOverrideInput) els.shippingOverrideInput.value = "";
+      renderCustomCoeffCard();
       renderShippingOverrideCards();
     });
   }
