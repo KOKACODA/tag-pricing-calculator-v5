@@ -695,6 +695,7 @@ const els = {
   tierQuickBtns: document.getElementById("tierQuickBtns"),
   resCraftPrice: document.getElementById("resCraftPrice"),
   resRopePrice: document.getElementById("resRopePrice"),
+  resTagCost: document.getElementById("resTagCost"),
   resShippingPrice: document.getElementById("resShippingPrice"),
   resCost: document.getElementById("resCost"),
   resWarnings: document.getElementById("resWarnings"),
@@ -1480,6 +1481,12 @@ function onCalculate() {
   els.resCost.innerHTML = result.costIncomplete
     ? '<span class="price-missing">部分缺价</span>'
     : "¥ " + formatMoney(result.cost);
+  // v8.9：吊牌成本合计 = 成本合计 - 邮费（标准模式），即吊牌本身成本（不含邮费运输）
+  if (els.resTagCost) {
+    els.resTagCost.innerHTML = result.costIncomplete
+      ? '<span class="price-missing">部分缺价</span>'
+      : "¥ " + formatMoney(result.cost - (result.shippingPrice || 0));
+  }
 
   // 渲染档位缺失警告
   if (result.warnings && result.warnings.length && els.resWarnings) {
@@ -2006,6 +2013,7 @@ function clearResult() {
     els.resShippingPrice.textContent = "-";
   }
   els.resCost.textContent = "-";
+  if (els.resTagCost) els.resTagCost.textContent = "-";
   if (els.resWarnings) {
     els.resWarnings.innerHTML = "";
     els.resWarnings.style.display = "none";
