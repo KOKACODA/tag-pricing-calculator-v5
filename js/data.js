@@ -10717,6 +10717,23 @@ const DIRECT_COEFF_LEVELS = DEFAULT_DIRECT_COEFF_LEVELS.map(l => ({ ...l }));
   console.info("[v8.0] 已重构为 2 个报价表（1楼/3楼）并覆盖纸张与邮费数据");
 })();
 
+// v8.4 迁移：用纠正版 Excel（KOKALabel1楼.xlsx / KOKALabel3楼.xlsx）覆盖纸张与工艺为最新默认数据
+(function migrateV8_4CorrectData() {
+  const dataVersion = loadFromStorage("dataVersion", "");
+  if (dataVersion === "8.4") return;
+
+  PAPER_CONFIG = DEFAULT_PAPER_CONFIG.map(p => JSON.parse(JSON.stringify(p)));
+  saveToStorage("paperConfig", PAPER_CONFIG);
+
+  Object.keys(DEFAULT_CRAFT_CONFIG).forEach(k => {
+    CRAFT_CONFIG[k] = DEFAULT_CRAFT_CONFIG[k].map(c => ({ ...c, prices: { ...c.prices } }));
+  });
+  saveToStorage("craftConfig", CRAFT_CONFIG);
+
+  saveToStorage("dataVersion", "8.4");
+  console.info("[v8.4] 已按最新 Excel 覆盖纸张与工艺数据");
+})();
+
 let APP_PROFILE = loadFromStorage("appProfile", {
   companyName: "KOKALabel",
   companyPhone: "",
