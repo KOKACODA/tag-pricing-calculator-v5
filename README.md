@@ -55,6 +55,7 @@ python3 -m http.server 8080
 └── docs/
     ├── HANDOFF-v8.md           # 转手/交接文档
     ├── 项目总结.md             # 项目技术总结
+    ├── main-branch-summary.md  # main 分支（v7.10 旧谱系）历史档案
     ├── 归档说明-v8.md          # v8 谱系迁移
     └── 问题日志.md             # 已知问题
 ```
@@ -71,6 +72,7 @@ node --test tests/*.test.mjs        # 单元测试
 - AI Agent 接手入口：[AGENTS.md](AGENTS.md)
 - 转手/交接文档：[docs/HANDOFF-v8.md](docs/HANDOFF-v8.md)
 - 技术细节：[docs/项目总结.md](docs/项目总结.md)
+- main 分支历史档案：[docs/main-branch-summary.md](docs/main-branch-summary.md)
 - 版本历史：[CHANGELOG.md](CHANGELOG.md)
 
 ---

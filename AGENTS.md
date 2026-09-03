@@ -53,6 +53,7 @@ node --test tests/*.test.mjs        # 单元测试
 ## 更深层内容（按需再读，一上手不要读）
 
 - `docs/项目总结.md`（~250 行）— 设计新功能 / 要懂全部业务规则时再读
+- `docs/main-branch-summary.md` — main 分支（v7.10 旧谱系）完整历史档案，做课题研究 / 追旧版本演化时读
 - `docs/问题日志.md`、`docs/归档说明-v8.md` — 问题追踪 / 迁移来历
 - `CHANGELOG.md` — 查历史用；近期改动可用 `git log --oneline -10` 快速扫
 
