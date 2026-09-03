@@ -709,6 +709,8 @@ const els = {
   shippingOverrideInput: document.getElementById("shippingOverrideInput"),
   shippingOverrideClear: document.getElementById("shippingOverrideClear"),
   shippingOverrideLabel: document.getElementById("shippingOverrideLabel"),
+  shippingOverrideCost: document.getElementById("shippingOverrideCost"),
+  shippingOverrideCostValue: document.getElementById("shippingOverrideCostValue"),
   shippingOverrideCards: document.getElementById("shippingOverrideCards"),
   searchInput: document.getElementById("searchInput"),
   priceTable: document.getElementById("priceTable"),
@@ -821,6 +823,10 @@ function applyDefaultQuoteVisibility() {
   const showCards = shouldShowDefaultQuoteCards(calcMode, defaultQuoteVisible);
   if (els.defaultPriceLabel) els.defaultPriceLabel.classList.toggle("default-quote-hidden", !showCards);
   if (els.priceCards) els.priceCards.classList.toggle("default-quote-hidden", !showCards);
+  // v8.3：邮费快速修改区（标签/成本/卡片）也随默认报价显隐
+  if (els.shippingOverrideLabel) els.shippingOverrideLabel.classList.toggle("default-quote-hidden", !showCards);
+  if (els.shippingOverrideCost) els.shippingOverrideCost.classList.toggle("default-quote-hidden", !showCards);
+  if (els.shippingOverrideCards) els.shippingOverrideCards.classList.toggle("default-quote-hidden", !showCards);
   if (els.defaultQuoteToggle) {
     els.defaultQuoteToggle.setAttribute("aria-checked", String(defaultQuoteVisible));
     els.defaultQuoteToggle.classList.toggle("is-off", !defaultQuoteVisible);
@@ -1920,17 +1926,11 @@ function renderTempCoeffResults() {
 function renderShippingOverrideCards() {
   if (!els.shippingOverrideCards || !_lastResult) return;
   const { newShipping, hasCoeff, hasShipOverride } = getOverrideValues();
-  // 没输入或无效值时隐藏
-  if (!hasShipOverride) {
+  // 没输入/无效值，或同时填写了临时毛利系数（v8.1 合并由临时系数卡片展示）时隐藏
+  if (!hasShipOverride || hasCoeff) {
     els.shippingOverrideCards.style.display = "none";
     els.shippingOverrideLabel.style.display = "none";
-    els.shippingOverrideCards.innerHTML = "";
-    return;
-  }
-  // v8.1：同时填写了临时毛利系数时，隐藏邮费修改卡片（合并结果由临时系数卡片展示）
-  if (hasCoeff) {
-    els.shippingOverrideCards.style.display = "none";
-    els.shippingOverrideLabel.style.display = "none";
+    if (els.shippingOverrideCost) els.shippingOverrideCost.style.display = "none";
     els.shippingOverrideCards.innerHTML = "";
     return;
   }
@@ -1938,6 +1938,15 @@ function renderShippingOverrideCards() {
   const origShipping = _lastResult.shippingPrice || 0;
   const newCost = _lastResult.cost - origShipping + newShipping;
   const costIncomplete = _lastResult.costIncomplete;
+  // v8.3：显示修改后成本（高亮红字）
+  if (els.shippingOverrideCost) {
+    if (els.shippingOverrideCostValue) {
+      els.shippingOverrideCostValue.textContent = costIncomplete
+        ? "部分缺价"
+        : "¥ " + formatMoney(newCost);
+    }
+    els.shippingOverrideCost.style.display = "flex";
+  }
   // 渲染 3 个默认等级报价卡片
   els.shippingOverrideCards.innerHTML = _lastResult.pricesByLevel.map((item, idx) => {
     const newPrice = newCost * item.coefficient;

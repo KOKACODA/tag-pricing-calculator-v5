@@ -1389,6 +1389,29 @@
       font-size: clamp(0.625rem, 3vw, 0.75rem);
       color: var(--text-secondary);
     }
+    /* v8.3：修改后成本高亮红字（与主结果区成本合计同风格） */
+    .shipping-override-cost-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: clamp(0.5rem, 2vw, 0.625rem) clamp(0.75rem, 3vw, 0.875rem);
+      margin: clamp(0.5rem, 2vw, 0.625rem) 0;
+      border: 1px solid var(--danger-border);
+      border-radius: 0.5rem;
+      background: var(--danger-light);
+    }
+    .shipping-override-cost-label {
+      color: var(--danger);
+      font-weight: 800;
+      font-size: clamp(0.8125rem, 3.5vw, 0.9375rem);
+    }
+    .shipping-override-cost-value {
+      color: var(--danger);
+      font-size: clamp(20px, 4vw, 26px);
+      font-weight: 900;
+      line-height: 1.2;
+    }
     /* 修改邮费后的报价卡片用绿色边框区分 */
     .shipping-override-cards .price-card {
       border-color: var(--success);
