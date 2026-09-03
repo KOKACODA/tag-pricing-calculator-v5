@@ -351,7 +351,7 @@ function hasExactTier(pricesObj, tier) {
  * 标准计价流程：支持多纸张、每张纸独立吊牌展开尺寸、统一批量档位。
  */
 function calculate(inputs) {
-  const { sheetCount, tier, sheets, ropeId, regionId, mode } = inputs;
+  const { sheetCount, tier, sheets, ropeId, regionId, mode, shippingWeight, manualShippingPrice } = inputs;
   const isDirect = mode === "direct";
 
   // 直接系数模式不需要 ropeId 和 regionId
@@ -512,16 +512,38 @@ function calculate(inputs) {
   }
 
   // 邮费（直接系数模式跳过）
+  // v8.0：三种情况 - A 固定档直接查价；B >10000 重量×系数；C 中间档手动输入
   let shippingPrice = null;
+  let shippingMode = null;        // "fixed" | "weight" | "manual"
+  let shippingWeightUsed = null;  // 用于展示的重量值
   if (!isDirect) {
-    shippingPrice = hasExactTier(region.basePrices, tier)
-      ? Number(region.basePrices[tier])
-      : null;
-    if (shippingPrice != null && sheetDetails.length && sheetDetails[0].area < region.smallAreaThreshold) {
-      shippingPrice *= region.discount;
-    } else if (shippingPrice == null) {
-      hasMissingTier = true;
-      warnings.push(`地区「${region.name}」无 ${tier} 张批量定价`);
+    if (hasExactTier(region.basePrices, tier)) {
+      // A：固定档直接查价
+      shippingPrice = Number(region.basePrices[tier]);
+      shippingMode = "fixed";
+    } else if (tier > 10000) {
+      // B：数量超过 10000，邮费 = 吊牌重量(kg) × 地区系数
+      const w = Number(shippingWeight);
+      if (shippingWeight != null && !isNaN(w) && w > 0) {
+        shippingPrice = w * region.overTierCoeff;
+        shippingWeightUsed = w;
+        shippingMode = "weight";
+      } else {
+        shippingMode = "weight";
+        hasMissingTier = true;
+        warnings.push(`地区「${region.name}」数量 ${tier} 张超过 10000，请填写吊牌重量(kg)计算邮费`);
+      }
+    } else {
+      // C：中间档（2500/3000/4000 等），手动输入邮费
+      const m = Number(manualShippingPrice);
+      if (manualShippingPrice != null && !isNaN(m) && m > 0) {
+        shippingPrice = m;
+        shippingMode = "manual";
+      } else {
+        shippingMode = "manual";
+        hasMissingTier = true;
+        warnings.push(`地区「${region.name}」无 ${tier} 张批量定价，请手动填写邮费`);
+      }
     }
   }
 
@@ -633,6 +655,8 @@ function calculate(inputs) {
     craftTotal,
     ropePrice,
     shippingPrice,
+    shippingMode,
+    shippingWeightUsed,
     cost,
     costIncomplete,
     hasMissingTier,
@@ -763,6 +787,15 @@ const els = {
   historyDetailLoadBtn: document.getElementById("historyDetailLoadBtn"),
   historyDetailCloseBtn: document.getElementById("historyDetailCloseBtn"),
   historyDetailCancelBtn: document.getElementById("historyDetailCancelBtn"),
+  // v8.0：邮费输入对话框
+  shippingWeightDialog: document.getElementById("shippingWeightDialog"),
+  shippingWeightInput: document.getElementById("shippingWeightInput"),
+  shippingWeightDesc: document.getElementById("shippingWeightDesc"),
+  shippingWeightConfirm: document.getElementById("shippingWeightConfirm"),
+  manualShippingDialog: document.getElementById("manualShippingDialog"),
+  manualShippingInput: document.getElementById("manualShippingInput"),
+  manualShippingDesc: document.getElementById("manualShippingDesc"),
+  manualShippingConfirm: document.getElementById("manualShippingConfirm"),
   // 模式切换
   modeBtns: document.querySelectorAll(".mode-btn"),
   // 报价结果中需要模式控制的行
@@ -779,6 +812,9 @@ let activeHistoryRecordId = null;
 // 计算模式：默认直接系数计算（v6.1 起），持久化到 localStorage
 let calcMode = loadFromStorage("currentCalcMode", "direct"); // "standard" | "direct"
 let defaultQuoteVisible = loadFromStorage("defaultQuoteVisible", true) !== false;
+// v8.0：邮费输入缓存（会话级，不持久化，刷新后重新询问）
+let shippingWeightCache = {};   // regionId -> 吊牌重量(kg)
+let manualShippingCache = {};   // regionId_tier -> 手动邮费金额(元)
 
 function applyDefaultQuoteVisibility() {
   const showCards = shouldShowDefaultQuoteCards(calcMode, defaultQuoteVisible);
@@ -1270,7 +1306,32 @@ function onCalculate() {
     return;
   }
 
-  const result = calculate({ sheetCount, tier, sheets, ropeId, regionId, mode: calcMode });
+  // v8.0：标准模式邮费输入检测（固定档直接查价；>10000 需重量；中间档需手动输入）
+  let shippingWeight = null;
+  let manualShippingPrice = null;
+  let needShippingWeight = false;
+  let needManualShipping = false;
+  if (calcMode === "standard" && regionId) {
+    const region = SHIPPING_CONFIG.find(s => s.id === regionId);
+    if (region && !hasExactTier(region.basePrices, tier)) {
+      if (tier > 10000) {
+        if (shippingWeightCache[regionId] != null) {
+          shippingWeight = shippingWeightCache[regionId];
+        } else {
+          needShippingWeight = true;
+        }
+      } else {
+        const manualKey = regionId + "_" + tier;
+        if (manualShippingCache[manualKey] != null) {
+          manualShippingPrice = manualShippingCache[manualKey];
+        } else {
+          needManualShipping = true;
+        }
+      }
+    }
+  }
+
+  const result = calculate({ sheetCount, tier, sheets, ropeId, regionId, mode: calcMode, shippingWeight, manualShippingPrice });
 
   if (!result) {
     clearResult();
@@ -1390,7 +1451,20 @@ function onCalculate() {
         ${ropePrice}
       </span>
     `;
-    els.resShippingPrice.innerHTML = result.shippingPrice != null ? "¥ " + formatMoney(result.shippingPrice) : '<span class="price-missing">无该批量定价</span>';
+    // v8.0：邮费按三种情况展示明细
+    if (result.shippingPrice != null) {
+      if (result.shippingMode === "weight") {
+        const shipRegion = SHIPPING_CONFIG.find(s => s.id === regionId);
+        const coeff = shipRegion ? shipRegion.overTierCoeff : "";
+        els.resShippingPrice.innerHTML = `重量 ${result.shippingWeightUsed}kg × ${coeff} = <span style="color:var(--brand);font-weight:600;">¥ ${formatMoney(result.shippingPrice)}</span>`;
+      } else if (result.shippingMode === "manual") {
+        els.resShippingPrice.innerHTML = `<span style="color:var(--brand);font-weight:600;">¥ ${formatMoney(result.shippingPrice)}</span>（手动输入）`;
+      } else {
+        els.resShippingPrice.innerHTML = "¥ " + formatMoney(result.shippingPrice);
+      }
+    } else {
+      els.resShippingPrice.innerHTML = '<span class="price-missing">待输入</span>';
+    }
   }
   els.resCost.innerHTML = result.costIncomplete
     ? '<span class="price-missing">部分缺价</span>'
@@ -1546,10 +1620,97 @@ function onCalculate() {
     els.defaultPriceLabel.textContent = calcMode === "direct" ? "直接系数报价" : "默认报价（原邮费）";
   }
   applyDefaultQuoteVisibility();
+
+  // v8.0：渲染完成后，若邮费需输入，弹出对应对话框（固定档不弹）
+  if (needShippingWeight) {
+    openShippingWeightDialog(regionId, tier);
+  } else if (needManualShipping) {
+    openManualShippingDialog(regionId, tier);
+  }
 }
 
 // 缓存上一次计算结果
 let _lastResult = null;
+
+// -------------------- v8.0 邮费输入对话框 --------------------
+// 记录当前待确认的对话框上下文（供确认时写入缓存）
+let _pendingShipping = null; // { type: "weight" | "manual", regionId, tier }
+
+function openShippingWeightDialog(regionId, tier) {
+  if (!els.shippingWeightDialog) return;
+  const region = SHIPPING_CONFIG.find(s => s.id === regionId);
+  const regionName = region ? region.name : "";
+  _pendingShipping = { type: "weight", regionId, tier };
+  if (els.shippingWeightDesc) {
+    els.shippingWeightDesc.textContent = `地区「${regionName}」数量 ${tier} 张超过 10000，请填写吊牌总重量，邮费 = 重量 × 系数`;
+  }
+  if (els.shippingWeightInput) {
+    els.shippingWeightInput.value = shippingWeightCache[regionId] != null ? shippingWeightCache[regionId] : "";
+  }
+  openShippingDialog(els.shippingWeightDialog);
+  setTimeout(() => { if (els.shippingWeightInput) els.shippingWeightInput.focus(); }, 0);
+}
+
+function openManualShippingDialog(regionId, tier) {
+  if (!els.manualShippingDialog) return;
+  const region = SHIPPING_CONFIG.find(s => s.id === regionId);
+  const regionName = region ? region.name : "";
+  const manualKey = regionId + "_" + tier;
+  _pendingShipping = { type: "manual", regionId, tier };
+  if (els.manualShippingDesc) {
+    els.manualShippingDesc.textContent = `地区「${regionName}」无 ${tier} 张批量定价，请手动填写邮费金额`;
+  }
+  if (els.manualShippingInput) {
+    els.manualShippingInput.value = manualShippingCache[manualKey] != null ? manualShippingCache[manualKey] : "";
+  }
+  openShippingDialog(els.manualShippingDialog);
+  setTimeout(() => { if (els.manualShippingInput) els.manualShippingInput.focus(); }, 0);
+}
+
+function openShippingDialog(dialog) {
+  if (!dialog) return;
+  if (typeof dialog.showModal === "function") {
+    dialog.showModal();
+  } else {
+    dialog.setAttribute("open", "");
+  }
+}
+
+function closeShippingDialog(dialog) {
+  if (!dialog) return;
+  if (typeof dialog.close === "function") {
+    dialog.close();
+  } else {
+    dialog.removeAttribute("open");
+  }
+  _pendingShipping = null;
+}
+
+function confirmShippingWeight() {
+  if (!_pendingShipping || !els.shippingWeightInput) return;
+  const w = parseFloat(els.shippingWeightInput.value);
+  if (!isNaN(w) && w > 0) {
+    shippingWeightCache[_pendingShipping.regionId] = w;
+    closeShippingDialog(els.shippingWeightDialog);
+    onCalculate();
+  } else {
+    closeShippingDialog(els.shippingWeightDialog);
+  }
+}
+
+function confirmManualShipping() {
+  if (!_pendingShipping || !els.manualShippingInput) return;
+  const m = parseFloat(els.manualShippingInput.value);
+  const manualKey = _pendingShipping.regionId + "_" + _pendingShipping.tier;
+  if (!isNaN(m) && m > 0) {
+    manualShippingCache[manualKey] = m;
+    closeShippingDialog(els.manualShippingDialog);
+    onCalculate();
+  } else {
+    delete manualShippingCache[manualKey];
+    closeShippingDialog(els.manualShippingDialog);
+  }
+}
 
 /**
  * 渲染临时毛利系数报价卡片
@@ -1945,7 +2106,7 @@ function renderShippingPriceTable() {
   if (!els.shippingPriceTable) return;
   const tierKeys = SHIPPING_CONFIG.length ? Object.keys(SHIPPING_CONFIG[0].basePrices).map(Number).sort((a, b) => a - b) : [];
   const theadRow = els.shippingPriceTable.querySelector("thead tr");
-  theadRow.innerHTML = '<th>地区名称</th>' + tierKeys.map(t => `<th>${t} 张</th>`).join("") + '<th>小面积阈值</th><th>折扣系数</th>';
+  theadRow.innerHTML = '<th>地区名称</th>' + tierKeys.map(t => `<th>${t} 张</th>`).join("") + '<th>超量系数</th>';
   const tbody = els.shippingPriceTable.querySelector("tbody");
   tbody.innerHTML = SHIPPING_CONFIG.map(s => `
     <tr>
@@ -1955,8 +2116,7 @@ function renderShippingPriceTable() {
         if (v == null) return `<td class="price-cell price-editable" data-type="shipping" data-region-id="${escapeHtml(s.id)}" data-tier="${t}" data-empty="1" title="点击填写价格"><span class="price-missing">无</span></td>`;
         return `<td class="price-cell price-editable" data-type="shipping" data-region-id="${escapeHtml(s.id)}" data-tier="${t}" title="点击编辑价格">¥ ${formatMoney(Number(v))}</td>`;
       }).join("")}
-      <td class="price-cell price-editable" data-type="shipping-threshold" data-region-id="${escapeHtml(s.id)}" title="点击编辑小面积阈值">${s.smallAreaThreshold}</td>
-      <td class="price-cell price-editable" data-type="shipping-discount" data-region-id="${escapeHtml(s.id)}" title="点击编辑折扣系数">${s.discount}</td>
+      <td class="price-cell price-editable" data-type="shipping-coeff" data-region-id="${escapeHtml(s.id)}" title="点击编辑超量系数">${s.overTierCoeff}</td>
     </tr>
   `).join("");
 }
@@ -2009,12 +2169,11 @@ function applyPriceEdit(type, data, value) {
     saveToStorage("ropeConfig", ROPE_CONFIG);
     return true;
   }
-  if (type === "shipping" || type === "shipping-threshold" || type === "shipping-discount") {
+  if (type === "shipping" || type === "shipping-coeff") {
     const region = SHIPPING_CONFIG.find(s => s.id === data.regionId);
     if (!region) return false;
     if (type === "shipping") region.basePrices[data.tier] = value;
-    else if (type === "shipping-threshold") region.smallAreaThreshold = value;
-    else region.discount = value;
+    else region.overTierCoeff = value;
     saveToStorage("shippingConfig", SHIPPING_CONFIG);
     return true;
   }
@@ -3929,12 +4088,11 @@ function setShippingExcelStatus(html, isError) {
 
 function shippingToSheetRows() {
   const tierKeys = SHIPPING_CONFIG.length ? Object.keys(SHIPPING_CONFIG[0].basePrices) : [];
-  const headerRow = ["地区名称", ...tierKeys.map(String), "小面积折扣阈值", "折扣系数"];
+  const headerRow = ["地区名称", ...tierKeys.map(String), "大于10000"];
   const dataRows = SHIPPING_CONFIG.map(region => [
     region.name,
     ...tierKeys.map(t => region.basePrices[t] ?? ""),
-    region.smallAreaThreshold,
-    region.discount
+    region.overTierCoeff
   ]);
   return [headerRow, ...dataRows];
 }
@@ -3951,12 +4109,12 @@ function exportShippingExcel() {
 function downloadShippingTemplate() {
   if (typeof XLSX === "undefined") { loadSheetJS().then(() => downloadShippingTemplate()).catch(() => showToast("Excel 库加载失败，请检查网络")); return; }
   const sample = DEFAULT_SHIPPING_CONFIG[0];
-  const tierKeys = sample ? Object.keys(sample.basePrices) : ["500", "1000", "2000", "3000", "5000"];
+  const tierKeys = sample ? Object.keys(sample.basePrices) : ["500", "1000", "2000", "5000", "10000"];
   const rows = [
-    ["地区名称", ...tierKeys.map(String), "小面积折扣阈值", "折扣系数"],
-    ["广东省内", ...tierKeys.map(t => sample ? sample.basePrices[t] : 0), 2500, 0.8],
-    ["江浙沪", ...tierKeys.map(() => 0), 2500, 0.8],
-    ["其他省份", ...tierKeys.map(() => 0), 2500, 0.8]
+    ["地区名称", ...tierKeys.map(String), "大于10000"],
+    ["广东省内", ...tierKeys.map(t => sample ? sample.basePrices[t] : 0), sample ? sample.overTierCoeff : 1],
+    ["江浙沪", ...tierKeys.map(() => 0), 1.2],
+    ["其他省份", ...tierKeys.map(() => 0), 1.3]
   ];
   const ws = XLSX.utils.aoa_to_sheet(rows);
   const wb = XLSX.utils.book_new();
@@ -3977,9 +4135,9 @@ function parseShippingExcel(arrayBuffer) {
   if (!rows.length) throw new Error("工作表为空");
 
   const headerRow = rows[0];
-  // 解析档位列（第2列起到倒数第2列），最后两列是阈值和折扣
+  // 解析档位列（第2列起到倒数第1列），最后1列是"大于10000"系数
   const tierKeys = [];
-  for (let c = 1; c < headerRow.length - 2; c++) {
+  for (let c = 1; c < headerRow.length - 1; c++) {
     const val = headerRow[c];
     if (val !== "" && !isNaN(Number(val)) && Number(val) > 0) {
       tierKeys.push(String(Number(val)));
@@ -4009,22 +4167,17 @@ function parseShippingExcel(arrayBuffer) {
       }
     }
 
-    // 解析最后两列：小面积折扣阈值、折扣系数
-    const thresholdIdx = 1 + tierKeys.length;
-    const discountIdx = thresholdIdx + 1;
-    const threshold = row[thresholdIdx] !== "" && row[thresholdIdx] != null
-      ? Number(row[thresholdIdx]) : 2500;
-    const discount = row[discountIdx] !== "" && row[discountIdx] != null
-      ? Number(row[discountIdx]) : 0.8;
-    if (isNaN(threshold)) errors.push(`「${name}」的折扣阈值无效，已按 2500 处理`);
-    if (isNaN(discount)) errors.push(`「${name}」的折扣系数无效，已按 0.8 处理`);
+    // 解析最后一列：大于10000系数
+    const coeffIdx = 1 + tierKeys.length;
+    const coeff = row[coeffIdx] !== "" && row[coeffIdx] != null
+      ? Number(row[coeffIdx]) : 1;
+    if (isNaN(coeff)) errors.push(`「${name}」的"大于10000"系数无效，已按 1 处理`);
 
     regions.push({
       id: "region" + (regions.length + 1),
       name,
       basePrices,
-      smallAreaThreshold: isNaN(threshold) ? 2500 : threshold,
-      discount: isNaN(discount) ? 0.8 : discount
+      overTierCoeff: isNaN(coeff) ? 1 : coeff
     });
   }
 
@@ -4211,6 +4364,29 @@ function bindEvents() {
       activeHistoryRecordId = null;
     });
   }
+
+  // v8.0：邮费输入对话框事件
+  if (els.shippingWeightConfirm) {
+    els.shippingWeightConfirm.addEventListener("click", confirmShippingWeight);
+  }
+  if (els.manualShippingConfirm) {
+    els.manualShippingConfirm.addEventListener("click", confirmManualShipping);
+  }
+  if (els.shippingWeightInput) {
+    els.shippingWeightInput.addEventListener("keydown", e => { if (e.key === "Enter") confirmShippingWeight(); });
+  }
+  if (els.manualShippingInput) {
+    els.manualShippingInput.addEventListener("keydown", e => { if (e.key === "Enter") confirmManualShipping(); });
+  }
+  document.querySelectorAll("[data-close-dialog]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const dialog = document.getElementById(btn.getAttribute("data-close-dialog"));
+      if (dialog) closeShippingDialog(dialog);
+    });
+  });
+  [els.shippingWeightDialog, els.manualShippingDialog].forEach(dialog => {
+    if (dialog) dialog.addEventListener("close", () => { _pendingShipping = null; });
+  });
 
   // 点击页面其他区域关闭纸张材质下拉
   document.addEventListener("click", () => closeAllPaperDropdowns());

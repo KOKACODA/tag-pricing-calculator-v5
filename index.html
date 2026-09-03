@@ -6,11 +6,11 @@
   <meta name="googlebot" content="noindex, nofollow">
   <!-- P0 安全：CSP 策略（v7.9：SheetJS 已本地化，script-src 仅允许 'self'，离线双击打开亦可用） -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';">
-  <title>KOKALabel报价系统 v7.9.0</title>
-  <link rel="icon" type="image/x-icon" href="favicon.ico?v=7.9.0">
-  <link rel="icon" type="image/png" href="favicon.png?v=7.9.0">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=7.9.0">
-  <link rel="stylesheet" href="css/style.css?v=7.9.0">
+  <title>KOKALabel报价系统 v8.0.0</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico?v=8.0.0">
+  <link rel="icon" type="image/png" href="favicon.png?v=8.0.0">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=8.0.0">
+  <link rel="stylesheet" href="css/style.css?v=8.0.0">
 </head>
 <body>
   <!-- 顶部导航 -->
@@ -986,7 +986,7 @@
           <div class="setting-row">
             <div class="setting-info">
               <div class="setting-label">当前版本</div>
-              <div class="setting-desc">KOKALabel报价系统 v7.9.0</div>
+              <div class="setting-desc">KOKALabel报价系统 v8.0.0</div>
             </div>
             <div class="setting-control">
               <span class="placeholder-badge">正式版</span>
@@ -1048,11 +1048,53 @@
     </div>
   </dialog>
 
+  <!-- v8.0：邮费重量输入对话框 -->
+  <dialog class="shipping-dialog" id="shippingWeightDialog" aria-label="输入吊牌重量">
+    <div class="shipping-dialog-shell">
+      <header class="shipping-dialog-header">
+        <h2>输入吊牌重量</h2>
+        <button type="button" class="shipping-dialog-close" data-close-dialog="shippingWeightDialog" aria-label="关闭">×</button>
+      </header>
+      <div class="shipping-dialog-body">
+        <p class="shipping-dialog-desc" id="shippingWeightDesc"></p>
+        <label class="shipping-dialog-field">
+          <span>吊牌重量（kg）</span>
+          <input type="number" id="shippingWeightInput" min="0" step="0.1" inputmode="decimal" placeholder="请输入吊牌总重量">
+        </label>
+      </div>
+      <footer class="shipping-dialog-footer">
+        <button type="button" class="btn secondary" data-close-dialog="shippingWeightDialog">取消</button>
+        <button type="button" class="btn" id="shippingWeightConfirm">确定</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- v8.0：邮费手动输入对话框 -->
+  <dialog class="shipping-dialog" id="manualShippingDialog" aria-label="手动输入邮费">
+    <div class="shipping-dialog-shell">
+      <header class="shipping-dialog-header">
+        <h2>手动输入邮费</h2>
+        <button type="button" class="shipping-dialog-close" data-close-dialog="manualShippingDialog" aria-label="关闭">×</button>
+      </header>
+      <div class="shipping-dialog-body">
+        <p class="shipping-dialog-desc" id="manualShippingDesc"></p>
+        <label class="shipping-dialog-field">
+          <span>邮费（元）</span>
+          <input type="number" id="manualShippingInput" min="0" step="0.01" inputmode="decimal" placeholder="请输入邮费金额">
+        </label>
+      </div>
+      <footer class="shipping-dialog-footer">
+        <button type="button" class="btn secondary" data-close-dialog="manualShippingDialog">取消</button>
+        <button type="button" class="btn" id="manualShippingConfirm">确定</button>
+      </footer>
+    </div>
+  </dialog>
+
   <!-- 提示条 -->
   <div class="toast" id="toast"></div>
 
   <!-- v7.9: SheetJS 本地化（离线双击打开亦可导出/导入 Excel），先于业务脚本加载，XLSX 全局可用 -->
-  <script src="js/vendor/xlsx.full.min.js?v=7.9.0"></script>
-  <script src="js/data.js?v=7.9.0"></script>
-  <script src="js/app.js?v=7.9.0"></script>
+  <script src="js/vendor/xlsx.full.min.js?v=8.0.0"></script>
+  <script src="js/data.js?v=8.0.0"></script>
+  <script src="js/app.js?v=8.0.0"></script>
 </body></html>
