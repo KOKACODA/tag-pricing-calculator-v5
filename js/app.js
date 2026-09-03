@@ -824,7 +824,10 @@ function applyDefaultQuoteVisibility() {
   const showCards = shouldShowDefaultQuoteCards(calcMode, defaultQuoteVisible);
   if (els.defaultPriceLabel) els.defaultPriceLabel.classList.toggle("default-quote-hidden", !showCards);
   if (els.priceCards) els.priceCards.classList.toggle("default-quote-hidden", !showCards);
-  // v8.6：邮费快速修改区（标签/修改后成本/卡片）不再随默认报价开关隐藏，保持始终可见
+  // 邮费快速修改的标签和客户等级卡片受默认报价开关隐藏（v8.3 原始设计）
+  if (els.shippingOverrideLabel) els.shippingOverrideLabel.classList.toggle("default-quote-hidden", !showCards);
+  if (els.shippingOverrideCards) els.shippingOverrideCards.classList.toggle("default-quote-hidden", !showCards);
+  // 注意：shippingOverrideCost（修改后成本红字）始终可见，不受默认报价开关控制（v8.8）
   if (els.defaultQuoteToggle) {
     els.defaultQuoteToggle.setAttribute("aria-checked", String(defaultQuoteVisible));
     els.defaultQuoteToggle.classList.toggle("is-off", !defaultQuoteVisible);
