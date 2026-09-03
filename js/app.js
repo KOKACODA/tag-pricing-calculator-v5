@@ -291,7 +291,7 @@ function findSpecByDisplayCode(paper, displayCode, area) {
  * 面积（加出血后）范围 → 强制规格代码：
  *   4000-4999 → 005
  *   5000-5499 → 055
- *   5500-5999 → 006
+ *   5500-6000 → 006（v8.2：6000 边界也强制 006，避免回落到 055 导致价格下降）
  * 命中返回对应规格副本；未命中返回 null（调用方按原逻辑处理）。
  */
 function forceSpecByArea(paper, area) {
@@ -299,7 +299,7 @@ function forceSpecByArea(paper, area) {
   let targetCode = null;
   if (area >= 4000 && area <= 4999) targetCode = "005";
   else if (area >= 5000 && area <= 5499) targetCode = "055";
-  else if (area >= 5500 && area <= 5999) targetCode = "006";
+  else if (area >= 5500 && area <= 6000) targetCode = "006";
   if (!targetCode) return null;
   const spec = paper.specs.find(s => s.code === targetCode);
   if (!spec) return null;
@@ -309,7 +309,7 @@ function forceSpecByArea(paper, area) {
 /**
  * 根据有效面积向上匹配尺寸规格。
  * 面积超过 10000 时使用最大规格（code "100"）并附带面积系数；007 与 008 合并显示为 007/008。
- * v7.3：面积 4000-5999 时强制映射 005/055/006，不读取表格数据。
+ * v7.3：面积 4000-6000 时强制映射 005/055/006，不读取表格数据。
  */
 function matchSpec(paper, area) {
   // v7.3：强制面积规格映射（不读取表格数据）
@@ -555,7 +555,8 @@ function calculate(inputs) {
     costKnown = true;
     costIncomplete = false;
   } else {
-    costKnown = [paperTotal, craftTotal, ropePrice, shippingPrice, batchDirectTotal, batchDirectCraftTotal].every(v => v != null);
+    // v8.2：costKnown 纳入全部缺价状态（hasMissingTier 已覆盖纸张/工艺/吊绳/邮费缺价）
+    costKnown = !hasMissingTier;
     cost = costKnown
       ? (paperTotal + craftTotal + ropePrice + shippingPrice + batchDirectTotal + batchDirectCraftTotal)
       : (paperTotal + craftTotal + (ropePrice || 0) + (shippingPrice || 0) + batchDirectTotal + batchDirectCraftTotal);
@@ -916,7 +917,10 @@ function updateTierOptions(isInit) {
 function renderSheets() {
   const count = parseInt(els.sheetCount.value, 10) || 2;
   const currentPapers = getPapersByPriceList(CURRENT_PRICE_LIST_ID);
-  const defaultPaperId = currentPapers[0]?.id || "";
+  // v8.2：默认纸张优先使用个人主页设置的默认纸张（若存在于当前报价表），否则用第一张纸
+  const defaultPaperId = (APP_PROFILE.defaultPaperId && currentPapers.some(p => p.id === APP_PROFILE.defaultPaperId))
+    ? APP_PROFILE.defaultPaperId
+    : (currentPapers[0]?.id || "");
   const newSheets = [];
 
   for (let i = 0; i < count; i++) {
@@ -2521,7 +2525,7 @@ function switchCalcMode(mode) {
  * 用途：换设备或被旧 localStorage 污染后，一键回到 DEFAULT 状态。
  */
 function resetToDefaults() {
-  const confirmMsg = "将清空以下本地修改并恢复出厂默认：\n\n• 报价表组（恢复为默认 1/2/3/4 号报价表）\n• 纸张配置（43 张，含 2/3/4 号报价表）\n• 工艺配置（含 烫金/UV/鸡眼/凹凸 等）\n• 吊绳配置\n• 邮费配置\n• 客户等级\n\n报价历史与本地快照不会被删除。\n\n确定继续？";
+  const confirmMsg = "将清空以下本地修改并恢复出厂默认：\n\n• 报价表组（恢复为默认 1楼/3楼 报价表）\n• 纸张配置（44 张）\n• 工艺配置（含 烫金/UV/鸡眼/凹凸 等）\n• 吊绳配置\n• 邮费配置\n• 客户等级\n\n报价历史与本地快照不会被删除。\n\n确定继续？";
   if (!confirm(confirmMsg)) return;
 
   const keysToReset = ["paperConfig", "craftConfig", "ropeConfig", "shippingConfig", "customerLevels", "priceLists", "currentPriceListId"];
@@ -2563,7 +2567,7 @@ function resetToDefaults() {
  * 保留范围：报价历史、本地快照。
  */
 function resetAllLocalSettings() {
-  const confirmMsg = "⚠️ 确定要恢复全局默认设置吗？\n\n将清除以下本地配置：\n• 报价表组（恢复为默认 1/2/3/4 号报价表）\n• 纸张配置（43 张，含 2/3/4 号报价表）\n• 工艺配置（含 烫金/UV/鸡眼/凹凸 等）\n• 吊绳配置\n• 邮费配置\n• 客户等级与毛利系数\n• 公司信息与个人偏好\n\n报价历史与本地快照不受影响。\n\n此操作不可撤销，恢复后页面将自动刷新。";
+  const confirmMsg = "⚠️ 确定要恢复全局默认设置吗？\n\n将清除以下本地配置：\n• 报价表组（恢复为默认 1楼/3楼 报价表）\n• 纸张配置（44 张）\n• 工艺配置（含 烫金/UV/鸡眼/凹凸 等）\n• 吊绳配置\n• 邮费配置\n• 客户等级与毛利系数\n• 公司信息与个人偏好\n\n报价历史与本地快照不受影响。\n\n此操作不可撤销，恢复后页面将自动刷新。";
   if (!confirm(confirmMsg)) return;
 
   // 清除所有本地配置 key（保留 history 和 snapshots）
@@ -2742,6 +2746,15 @@ function renderSnapshots() {
       if (item.data.craftConfig) {
         CRAFT_CONFIG = item.data.craftConfig;
         saveToStorage("craftConfig", CRAFT_CONFIG);
+      }
+      // v8.2：恢复吊绳与邮费配置（此前遗漏，导致快照恢复不完整）
+      if (item.data.ropeConfig) {
+        ROPE_CONFIG = item.data.ropeConfig;
+        saveToStorage("ropeConfig", ROPE_CONFIG);
+      }
+      if (item.data.shippingConfig) {
+        SHIPPING_CONFIG = item.data.shippingConfig;
+        saveToStorage("shippingConfig", SHIPPING_CONFIG);
       }
       currentPaperIndex = 0;
       renderPriceListSelector && renderPriceListSelector();
@@ -3152,7 +3165,7 @@ function setLocalBackupStatus(html, isError) {
 
 function exportLocalBackup() {
   const data = {
-    version: "6.5",
+    version: "8.1.0",
     kind: "local-backup",
     exportAt: new Date().toISOString(),
     priceLists: PRICE_LISTS,
@@ -3297,7 +3310,7 @@ function importLocalBackup(file) {
 // -------------------- 导入 / 导出完整配置 --------------------
 function exportFullData() {
   const data = {
-    version: "6.5",
+    version: "8.1.0",
     exportAt: new Date().toISOString(),
     priceLists: PRICE_LISTS,
     currentPriceListId: CURRENT_PRICE_LIST_ID,
@@ -4227,6 +4240,8 @@ function importShippingExcel(file) {
       // 直接替换 SHIPPING_CONFIG 的内容（保持引用不变）
       SHIPPING_CONFIG.length = 0;
       regions.forEach(r => SHIPPING_CONFIG.push(r));
+      // v8.2：导入后持久化到 localStorage，刷新不丢失
+      saveToStorage("shippingConfig", SHIPPING_CONFIG);
       // 重新渲染地区下拉
       if (els.region) {
         els.region.innerHTML = '<option value="">请选择地区</option>' +
