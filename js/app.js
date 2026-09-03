@@ -1924,11 +1924,29 @@ function renderTempCoeffResults() {
 function renderShippingOverrideCards() {
   if (!els.shippingOverrideCards || !_lastResult) return;
   const { newShipping, hasCoeff, hasShipOverride } = getOverrideValues();
-  // 没输入/无效值，或同时填写了临时毛利系数（v8.1 合并由临时系数卡片展示）时隐藏
-  if (!hasShipOverride || hasCoeff) {
+  // 没输入/无效值时整体隐藏
+  if (!hasShipOverride) {
     els.shippingOverrideCards.style.display = "none";
     els.shippingOverrideLabel.style.display = "none";
     if (els.shippingOverrideCost) els.shippingOverrideCost.style.display = "none";
+    els.shippingOverrideCards.innerHTML = "";
+    return;
+  }
+  // v8.7：同时填了临时毛利系数时，邮费修改的 label 和 3 个客户等级卡片仍隐藏（合并结果在临时系数卡片），
+  // 但「修改后成本」红字保持显示，让用户知道新成本是多少（再被临时系数相乘得到最终价）
+  if (hasCoeff) {
+    const origShippingForCost = _lastResult.shippingPrice || 0;
+    const newCostForCoeff = _lastResult.cost - origShippingForCost + newShipping;
+    if (els.shippingOverrideCost) {
+      if (els.shippingOverrideCostValue) {
+        els.shippingOverrideCostValue.textContent = _lastResult.costIncomplete
+          ? "部分缺价"
+          : "¥ " + formatMoney(newCostForCoeff);
+      }
+      els.shippingOverrideCost.style.display = "flex";
+    }
+    els.shippingOverrideCards.style.display = "none";
+    els.shippingOverrideLabel.style.display = "none";
     els.shippingOverrideCards.innerHTML = "";
     return;
   }
