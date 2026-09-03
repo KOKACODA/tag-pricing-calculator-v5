@@ -344,7 +344,8 @@ function matchSpec(paper, area) {
 function hasExactTier(pricesObj, tier) {
   if (!pricesObj) return false;
   const v = pricesObj[tier];
-  return v != null && !isNaN(Number(v));
+  // v8.5：空字符串视为无价格（Number("") === 0，会导致空档位被误判为价格 0）
+  return v != null && v !== "" && !isNaN(Number(v));
 }
 
 /**
