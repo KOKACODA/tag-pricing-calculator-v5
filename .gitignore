@@ -1,0 +1,14 @@
+# 依赖与构建缓存
+node_modules/
+.wrangler/
+
+# 系统与缓存文件
+.DS_Store
+Thumbs.db
+*.tmp
+*.log
+
+# 编辑器
+.idea/
+.vscode/
+*.swp
