@@ -1,4 +1,4 @@
-/* KOKALabel报价系统 v7.8 - 样式表 */
+/* KOKALabel报价系统 v9.0.0 - 样式表 */
 
 /* ===================== 全局变量与重置 ===================== */
     :root {
@@ -1239,6 +1239,25 @@
     }
     .price-card.custom-coeff .level-price {
       color: var(--brand-dark);
+    }
+    /* v9.0：第二种算法（成本×系数后再加邮费）用绿色实线区分 */
+    .price-card.custom-coeff.coeff-shipping-later {
+      background: var(--success-light, #ecfdf5);
+      border-color: var(--success, #059669);
+      border-style: solid;
+    }
+    .price-card.custom-coeff.coeff-shipping-later .level-name {
+      color: var(--success-dark, #047857);
+    }
+    .price-card.custom-coeff.coeff-shipping-later .level-price {
+      color: var(--success-dark, #047857);
+    }
+    .price-card.custom-coeff .level-sub {
+      display: block;
+      font-size: 0.72em;
+      font-weight: 500;
+      opacity: 0.72;
+      margin-top: 2px;
     }
 
     /* ===================== v6.8 每纸独立临时直接系数 ===================== */
