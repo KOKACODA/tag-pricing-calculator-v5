@@ -2466,7 +2466,7 @@ function showToast(message) {
 function renderLevelSettings() {
   if (!els.levelSettings) return;
   els.levelSettings.innerHTML = CUSTOMER_LEVELS.map((level, index) => `
-    <div class="level-editor" data-level-id="${level.id}">
+    <div class="level-editor" data-level-id="${escapeHtml(level.id)}">
       <input type="text" class="level-name" value="${escapeHtml(level.name)}" placeholder="等级名称" />
       <input type="number" class="level-coefficient" value="${level.coefficient}" min="1" step="0.01" />
       <span class="unit">倍</span>
@@ -3187,10 +3187,25 @@ function clearHistory() {
 }
 
 function escapeHtml(text) {
-  const div = document.createElement("div");
-  div.textContent = text;
-  return div.innerHTML;
+  if (text == null) return "";
+  return String(text)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
+
+// 非负有限数判定：用于导入价格/系数校验，拒绝负数、NaN、Infinity、非数字
+function isNonNegFinite(v) {
+  return typeof v === "number" && Number.isFinite(v) && v >= 0;
+}
+
+// Excel 字符串单元格公式注入防护：以 = + - @ 或制表/换行开头时前缀单引号转文本
+function safeExcelText(v) {
+  const s = String(v ?? "");
+  return /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
+}
+
+// 导入/恢复文件大小上限（50MB），防止超大文件导致浏览器卡死或内存耗尽
+var MAX_IMPORT_FILE_SIZE = 50 * 1024 * 1024;
 
 // -------------------- 本地备份 / 恢复 --------------------
 function setLocalBackupStatus(html, isError) {
@@ -3226,36 +3241,116 @@ function exportLocalBackup() {
  * 校验导入的配置数据结构，防止恶意/损坏数据导致 XSS 或崩溃。
  */
 function validateImportedData(data, expectedKind) {
-  if (!data || typeof data !== "object") {
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
     throw new Error("数据格式无效");
   }
   if (expectedKind && data.kind && data.kind !== expectedKind && data.kind !== "full-config" && data.kind !== "local-backup") {
     throw new Error("文件类型不匹配");
   }
-  // 校验字符串字段长度限制
   const MAX_STR_LEN = 200;
+  const MAX_ARRAY_LEN = 5000;
+  const MAX_PRICE_TIERS = 200;
   const validateString = (val, fieldName) => {
-    if (val != null && typeof val === "string" && val.length > MAX_STR_LEN) {
-      throw new Error(fieldName + " 超过最大长度限制");
+    if (val == null) return;
+    if (typeof val !== "string") throw new Error(fieldName + " 类型无效");
+    if (val.length > MAX_STR_LEN) throw new Error(fieldName + " 超过最大长度限制");
+  };
+  const validateArray = (val, fieldName) => {
+    if (val == null) return;
+    if (!Array.isArray(val)) throw new Error(fieldName + " 类型无效");
+    if (val.length > MAX_ARRAY_LEN) throw new Error(fieldName + " 数量超出限制");
+  };
+  // 数值校验：值为 null/undefined 时按 allowNull 决定是否放过；否则必须为非负有限数
+  const validateNumber = (val, fieldName, min, allowNull) => {
+    if (val == null) { if (allowNull !== false) return; throw new Error(fieldName + " 不能为空"); }
+    if (typeof val !== "number" || !Number.isFinite(val) || val < (min == null ? 0 : min)) {
+      throw new Error(fieldName + " 数值无效");
     }
   };
-  if (data.customerLevels && Array.isArray(data.customerLevels)) {
-    data.customerLevels.forEach(l => {
-      validateString(l.name, "客户等级名称");
-      if (typeof l.coefficient !== "number" || l.coefficient < 1 || l.coefficient > 100) {
-        throw new Error("客户等级系数无效");
-      }
+  // 价格对象：{档位: 价格}，键必须为数字档位，值必须为非负有限数或 null
+  const validatePrices = (prices, fieldName) => {
+    if (prices == null) return;
+    if (typeof prices !== "object" || Array.isArray(prices)) throw new Error(fieldName + " 价格结构无效");
+    const keys = Object.keys(prices);
+    if (keys.length > MAX_PRICE_TIERS) throw new Error(fieldName + " 档位数量超出限制");
+    for (const k of keys) {
+      if (!/^\d+$/.test(k)) throw new Error(fieldName + " 档位键无效");
+      validateNumber(prices[k], fieldName + " 价格", 0, true);
+    }
+  };
+
+  validateArray(data.priceLists, "报价表组");
+  if (data.priceLists) data.priceLists.forEach(pl => {
+    validateString(pl.id, "报价表ID");
+    validateString(pl.name, "报价表名称");
+  });
+
+  validateArray(data.customerLevels, "客户等级");
+  if (data.customerLevels) data.customerLevels.forEach(l => {
+    validateString(l.id, "客户等级ID");
+    validateString(l.name, "客户等级名称");
+    validateNumber(l.coefficient, "客户等级系数", 1, false);
+    if (l.coefficient > 100) throw new Error("客户等级系数无效");
+  });
+
+  validateArray(data.paperConfig, "纸张配置");
+  if (data.paperConfig) data.paperConfig.forEach(p => {
+    validateString(p.id, "纸张ID");
+    validateString(p.name, "纸张名称");
+    validateString(p.shortName, "纸张简称");
+    validateNumber(p.discount, "折扣系数", 0, false);
+    if (p.discount <= 0 || p.discount > 10) throw new Error("折扣系数无效: " + (p.shortName || p.name));
+    validateArray(p.specs, "纸张规格");
+    if (p.specs) p.specs.forEach(s => {
+      validateString(s.code, "规格代码");
+      validateNumber(s.maxArea, "规格最大面积", 1, false);
+      validatePrices(s.prices, "规格价格");
+    });
+    if (p.directCoeff) {
+      validateArray(p.directCoeff.tiers, "直接系数档位");
+      validateArray(p.directCoeff.max, "直接系数最高倍数");
+      validateArray(p.directCoeff.min, "直接系数最低倍数");
+      (p.directCoeff.max || []).forEach(v => validateNumber(v, "直接系数最高倍数", 0, false));
+      (p.directCoeff.min || []).forEach(v => validateNumber(v, "直接系数最低倍数", 0, false));
+    }
+    if (p.batchDirect) {
+      validateNumber(p.batchDirect.maxArea, "批量直接报价最大面积", 0, false);
+      validatePrices(p.batchDirect.prices, "批量直接报价价格");
+    }
+  });
+
+  validateArray(data.ropeConfig, "吊绳配置");
+  if (data.ropeConfig) data.ropeConfig.forEach(r => {
+    validateString(r.id, "吊绳ID");
+    validateString(r.name, "吊绳名称");
+    validatePrices(r.prices, "吊绳价格");
+  });
+
+  validateArray(data.shippingConfig, "邮费配置");
+  if (data.shippingConfig) data.shippingConfig.forEach(s => {
+    validateString(s.id, "地区ID");
+    validateString(s.name, "地区名称");
+    validatePrices(s.basePrices, "邮费基础价格");
+    validateNumber(s.overTierCoeff, "超量系数", 0, false);
+  });
+
+  if (data.craftConfig && typeof data.craftConfig === "object" && !Array.isArray(data.craftConfig)) {
+    const craftKeys = Object.keys(data.craftConfig);
+    if (craftKeys.length > MAX_ARRAY_LEN) throw new Error("工艺配置数量超出限制");
+    craftKeys.forEach(k => {
+      validateString(k, "工艺纸张ID");
+      validateArray(data.craftConfig[k], "工艺列表");
+      if (data.craftConfig[k]) data.craftConfig[k].forEach(c => {
+        validateString(c.id, "工艺ID");
+        validateString(c.name, "工艺名称");
+        validatePrices(c.prices, "工艺价格");
+      });
     });
   }
-  if (data.paperConfig && Array.isArray(data.paperConfig)) {
-    data.paperConfig.forEach(p => {
-      validateString(p.name, "纸张名称");
-      validateString(p.shortName, "纸张简称");
-      if (typeof p.discount !== "number" || p.discount <= 0 || p.discount > 10) {
-        throw new Error("折扣系数无效: " + (p.shortName || p.name));
-      }
-    });
-  }
+
+  validateArray(data.snapshots, "快照");
+  validateArray(data.history, "历史记录");
+
   if (data.appProfile && typeof data.appProfile === "object") {
     validateString(data.appProfile.companyName, "公司名");
     validateString(data.appProfile.companyPhone, "电话");
@@ -3265,6 +3360,7 @@ function validateImportedData(data, expectedKind) {
 
 function importLocalBackup(file) {
   if (!file) return;
+  if (file.size > MAX_IMPORT_FILE_SIZE) { setLocalBackupStatus("文件过大（超过 50MB），请检查后再恢复", true); return; }
   if (!confirm("恢复本地备份会覆盖当前所有配置（纸张/吊绳/工艺/客户等级/历史/快照）。是否继续？")) {
     if (els.importLocalBackupFile) els.importLocalBackupFile.value = "";
     return;
@@ -3331,7 +3427,7 @@ function importLocalBackup(file) {
       setLocalBackupStatus(`已从本地文件恢复：${escapeHtml(file.name)}（${new Date().toLocaleString()}）`, false);
       showToast("本地备份已恢复");
     } catch (err) {
-      setLocalBackupStatus("恢复失败：" + err.message, true);
+      setLocalBackupStatus("恢复失败：" + escapeHtml(err.message), true);
       showToast("本地备份恢复失败");
     }
     if (els.importLocalBackupFile) els.importLocalBackupFile.value = "";
@@ -3365,6 +3461,7 @@ function exportFullData() {
 
 function importFullData(file) {
   if (!file) return;
+  if (file.size > MAX_IMPORT_FILE_SIZE) { showToast("文件过大（超过 50MB），请检查后再导入"); return; }
   const reader = new FileReader();
   reader.onload = e => {
     try {
@@ -3452,7 +3549,7 @@ function paperToSheetRows(paper) {
 
   const headerRow = ["代码", "最大含出血面积", ...tierKeys];
   const dataRows = paper.specs.map(spec => [
-    spec.code,
+    safeExcelText(spec.code),
     spec.maxArea,
     ...tierKeys.map(t => {
       // 缺值时留空（与源数据一致，不臆造 0）
@@ -3465,7 +3562,7 @@ function paperToSheetRows(paper) {
         [],
         ["工艺名称", ...tierKeys],
         ...crafts.map(craft => [
-          craft.name,
+          safeExcelText(craft.name),
           ...tierKeys.map(t => {
             const v = craft.prices[t];
             return v == null ? "" : v;
@@ -3515,9 +3612,9 @@ function paperToSheetRows(paper) {
   }
   return [
     ["所属小组", GROUP_NAME_MAP[getCurrentPriceList().groupId] || GROUP_META.name],
-    ["总报价表", getCurrentPriceList().name],
-    ["报价表全称", paper.name],
-    ["简称", paper.shortName],
+    ["总报价表", safeExcelText(getCurrentPriceList().name)],
+    ["报价表全称", safeExcelText(paper.name)],
+    ["简称", safeExcelText(paper.shortName)],
     ["折扣系数", paper.discount],
     ...directCoeffRows(paper, tierKeys),
     ...batchDirectRows(paper, tierKeys),
@@ -3680,7 +3777,7 @@ function parsePaperExcel(arrayBuffer) {
           const v = row[c];
           if (v === "" || v == null) continue;
           const n = Number(v);
-          if (!isNaN(n)) arr.push(n);
+          if (Number.isFinite(n)) arr.push(n);
         }
         return arr;
       };
@@ -3688,7 +3785,8 @@ function parsePaperExcel(arrayBuffer) {
       const maxs = toNumArr(dcRows.max);
       const mins = toNumArr(dcRows.min);
       // 三行都有值且档位数量一致 → 有效直接系数
-      if (tiers.length && maxs.length === tiers.length && mins.length === tiers.length) {
+      if (tiers.length && maxs.length === tiers.length && mins.length === tiers.length &&
+          maxs.every(n => n >= 0) && mins.every(n => n >= 0)) {
         directCoeff = { tiers, max: maxs, min: mins };
       }
       // 仅档位占位（无最高/最低）或无任何行 → directCoeff 保持 null
@@ -3712,7 +3810,7 @@ function parsePaperExcel(arrayBuffer) {
           const v = row[c];
           if (v === "" || v == null) continue;
           const n = Number(v);
-          if (!isNaN(n)) arr.push(n);
+          if (Number.isFinite(n)) arr.push(n);
         }
         return arr;
       };
@@ -3720,8 +3818,9 @@ function parsePaperExcel(arrayBuffer) {
       const bdMaxArea = maxAreaRaw === "" || maxAreaRaw == null ? 0 : Number(maxAreaRaw);
       const bdTiers = toNumArr(bdRows.tiers).filter(n => n > 0 && Number.isInteger(n));
       const bdPrices = toNumArr(bdRows.prices);
-      // 最大面积有效 + 档位与价格数量一致 → 有效批量直接报价
-      if (bdMaxArea > 0 && bdTiers.length && bdPrices.length === bdTiers.length) {
+      const bdPricesValid = bdPrices.length > 0 && bdPrices.every(p => p >= 0);
+      // 最大面积有效 + 档位与价格数量一致 + 价格非负 → 有效批量直接报价
+      if (bdMaxArea > 0 && bdTiers.length && bdPrices.length === bdTiers.length && bdPricesValid) {
         const prices = {};
         bdTiers.forEach((t, i) => { prices[t] = bdPrices[i]; });
         batchDirect = { maxArea: bdMaxArea, prices };
@@ -3762,18 +3861,27 @@ function parsePaperExcel(arrayBuffer) {
     }
 
     const headerRow = rows[headerRowIndex];
-    const tierKeys = [];
+    const tierCols = [];
+    const seenTier = new Set();
     const rawHeader = [];
     for (let c = 2; c < headerRow.length; c++) {
       const val = headerRow[c];
       const valid = val !== "" && !isNaN(Number(val)) && Number(val) > 0;
       if (valid) {
-        tierKeys.push(String(Number(val)));
-        rawHeader.push(String(Number(val)));
+        const key = String(Number(val));
+        rawHeader.push(key);
+        if (!seenTier.has(key)) {
+          seenTier.add(key);
+          tierCols.push({ tier: key, col: c });
+        }
       } else {
         rawHeader.push(null);
       }
     }
+    // 去重 + 升序排序，防止表头档位重复/乱序导致价格错位
+    tierCols.sort((a, b) => Number(a.tier) - Number(b.tier));
+    const tierKeys = tierCols.map(tc => tc.tier);
+    const tierColIdx = tierCols.map(tc => tc.col);
     // v6.6：检测档位表头中间空列（误删列/合并单元格残留），避免价格静默错位
     // 规则：第一个有效档位之后出现空列，且其后仍有有效档位 → 中间空列，报错提示
     const firstValidIdx = rawHeader.findIndex(v => v !== null);
@@ -3813,14 +3921,14 @@ function parsePaperExcel(arrayBuffer) {
       const prices = {};
       for (let i = 0; i < tierKeys.length; i++) {
         const tier = tierKeys[i];
-        const val = row[2 + i];
+        const val = row[tierColIdx[i]];
         if (val === "" || val == null) {
           // 数据源没有该批量价格 -> 保留 null（占位，UI 显示"无该批量定价"）
           prices[tier] = null;
         } else {
           const price = Number(val);
-          if (isNaN(price)) {
-            errors.push(`「${sheetName}」${code} 的 ${tier} 档价格无效，已按占位处理`);
+          if (!isNonNegFinite(price)) {
+            errors.push(`「${sheetName}」${code} 的 ${tier} 档价格无效（应为非负数），已按占位处理`);
             prices[tier] = null;
           } else {
             prices[tier] = price;
@@ -3874,14 +3982,14 @@ function parsePaperExcel(arrayBuffer) {
         const prices = {};
         for (let i = 0; i < tierKeys.length; i++) {
           const tier = tierKeys[i];
-          const val = row[1 + i];
+          const val = row[tierColIdx[i] - 1];
           if (val === "" || val == null) {
             // 数据源没有该工艺批量价格 -> 占位
             prices[tier] = null;
           } else {
             const price = Number(val);
-            if (isNaN(price)) {
-              errors.push(`「${sheetName}」工艺「${craftName}」的 ${tier} 档价格无效，已按占位处理`);
+            if (!isNonNegFinite(price)) {
+              errors.push(`「${sheetName}」工艺「${craftName}」的 ${tier} 档价格无效（应为非负数），已按占位处理`);
               prices[tier] = null;
             } else {
               prices[tier] = price;
@@ -3931,6 +4039,7 @@ function parsePaperExcel(arrayBuffer) {
 
 function importPaperExcel(file) {
   if (!file) return;
+  if (file.size > MAX_IMPORT_FILE_SIZE) { setExcelStatus("文件过大（超过 50MB），请检查后再导入", true); return; }
   if (typeof XLSX === "undefined") {
     loadSheetJS().then(() => importPaperExcel(file)).catch(() => { setExcelStatus("Excel 库加载失败，请检查网络", true); showToast("Excel 库加载失败"); });
     return;
@@ -3957,12 +4066,12 @@ function importPaperExcel(file) {
       renderPriceTable();
       onCalculate();
       const craftCount = Object.values(crafts).reduce((sum, arr) => sum + arr.length, 0);
-      const successMsg = `成功导入报价表「${plName}」（${papers.length} 张纸张${craftCount ? `，含 ${craftCount} 条工艺` : ""}）：${papers.map(p => p.shortName).join("、")}`;
-      const errMsg = errors.length ? `<br><span style="color:var(--danger)">警告：${errors.join("；")}</span>` : "";
+      const successMsg = `成功导入报价表「${escapeHtml(plName)}」（${papers.length} 张纸张${craftCount ? `，含 ${craftCount} 条工艺` : ""}）：${papers.map(p => escapeHtml(p.shortName)).join("、")}`;
+      const errMsg = errors.length ? `<br><span style="color:var(--danger)">警告：${errors.map(escapeHtml).join("；")}</span>` : "";
       setExcelStatus(successMsg + errMsg, false);
       showToast(`已导入报价表「${plName}」`);
     } catch (err) {
-      setExcelStatus("导入失败：" + err.message, true);
+      setExcelStatus("导入失败：" + escapeHtml(err.message), true);
       showToast("Excel 导入失败");
     }
     if (els.importExcelFile) els.importExcelFile.value = "";
@@ -4005,7 +4114,7 @@ function ropeToSheetRows() {
   const tierKeys = ROPE_CONFIG.length ? Object.keys(ROPE_CONFIG[0].prices) : [];
   const headerRow = ["吊绳名称", ...tierKeys.map(String)];
   const dataRows = ROPE_CONFIG.map(rope => [
-    rope.name,
+    safeExcelText(rope.name),
     ...tierKeys.map(t => rope.prices[t] ?? "")
   ]);
   return [headerRow, ...dataRows];
@@ -4079,8 +4188,8 @@ function parseRopeExcel(arrayBuffer) {
       const tier = tierKeys[i];
       const val = row[1 + i];
       const price = val === "" || val == null ? 0 : Number(val);
-      if (isNaN(price)) {
-        errors.push(`「${name}」的 ${tier} 档价格无效，已按 0 处理`);
+      if (!isNonNegFinite(price)) {
+        errors.push(`「${name}」的 ${tier} 档价格无效（应为非负数），已按 0 处理`);
         prices[tier] = 0;
       } else {
         prices[tier] = price;
@@ -4114,6 +4223,7 @@ function parseRopeExcel(arrayBuffer) {
 
 function importRopeExcel(file) {
   if (!file) return;
+  if (file.size > MAX_IMPORT_FILE_SIZE) { setRopeExcelStatus("文件过大（超过 50MB），请检查后再导入", true); return; }
   if (typeof XLSX === "undefined") {
     loadSheetJS().then(() => importRopeExcel(file)).catch(() => { setRopeExcelStatus("Excel 库加载失败，请检查网络", true); showToast("Excel 库加载失败"); });
     return;
@@ -4126,12 +4236,12 @@ function importRopeExcel(file) {
       saveToStorage("ropeConfig", ROPE_CONFIG);
       rebuildRopeUI();
       onCalculate();
-      const successMsg = `成功导入 ${ropes.length} 种吊绳：${ropes.map(r => r.name).join("、")}`;
-      const errMsg = errors.length ? `<br><span style="color:var(--danger)">警告：${errors.join("；")}</span>` : "";
+      const successMsg = `成功导入 ${ropes.length} 种吊绳：${ropes.map(r => escapeHtml(r.name)).join("、")}`;
+      const errMsg = errors.length ? `<br><span style="color:var(--danger)">警告：${errors.map(escapeHtml).join("；")}</span>` : "";
       setRopeExcelStatus(successMsg + errMsg, false);
       showToast("吊绳 Excel 导入成功");
     } catch (err) {
-      setRopeExcelStatus("导入失败：" + err.message, true);
+      setRopeExcelStatus("导入失败：" + escapeHtml(err.message), true);
       showToast("吊绳 Excel 导入失败");
     }
     if (els.importRopeExcelFile) els.importRopeExcelFile.value = "";
@@ -4168,7 +4278,7 @@ function shippingToSheetRows() {
   const tierKeys = SHIPPING_CONFIG.length ? Object.keys(SHIPPING_CONFIG[0].basePrices) : [];
   const headerRow = ["地区名称", ...tierKeys.map(String), "大于10000"];
   const dataRows = SHIPPING_CONFIG.map(region => [
-    region.name,
+    safeExcelText(region.name),
     ...tierKeys.map(t => region.basePrices[t] ?? ""),
     region.overTierCoeff
   ]);
@@ -4237,8 +4347,8 @@ function parseShippingExcel(arrayBuffer) {
       const tier = tierKeys[i];
       const val = row[1 + i];
       const price = val === "" || val == null ? 0 : Number(val);
-      if (isNaN(price)) {
-        errors.push(`「${name}」的 ${tier} 档价格无效，已按 0 处理`);
+      if (!isNonNegFinite(price)) {
+        errors.push(`「${name}」的 ${tier} 档价格无效（应为非负数），已按 0 处理`);
         basePrices[tier] = 0;
       } else {
         basePrices[tier] = price;
@@ -4249,13 +4359,13 @@ function parseShippingExcel(arrayBuffer) {
     const coeffIdx = 1 + tierKeys.length;
     const coeff = row[coeffIdx] !== "" && row[coeffIdx] != null
       ? Number(row[coeffIdx]) : 1;
-    if (isNaN(coeff)) errors.push(`「${name}」的"大于10000"系数无效，已按 1 处理`);
+    if (!isNonNegFinite(coeff)) errors.push(`「${name}」的"大于10000"系数无效（应为非负数），已按 1 处理`);
 
     regions.push({
       id: "region" + (regions.length + 1),
       name,
       basePrices,
-      overTierCoeff: isNaN(coeff) ? 1 : coeff
+      overTierCoeff: isNonNegFinite(coeff) ? coeff : 1
     });
   }
 
@@ -4265,6 +4375,7 @@ function parseShippingExcel(arrayBuffer) {
 
 function importShippingExcel(file) {
   if (!file) return;
+  if (file.size > MAX_IMPORT_FILE_SIZE) { setShippingExcelStatus("文件过大（超过 50MB），请检查后再导入", true); return; }
   if (typeof XLSX === "undefined") {
     loadSheetJS().then(() => importShippingExcel(file)).catch(() => { setShippingExcelStatus("Excel 库加载失败，请检查网络", true); showToast("Excel 库加载失败"); });
     return;
@@ -4285,12 +4396,12 @@ function importShippingExcel(file) {
         if (SHIPPING_CONFIG.length > 0) els.region.value = SHIPPING_CONFIG[0].id;
       }
       onCalculate();
-      const successMsg = `成功导入 ${regions.length} 个地区的邮费：${regions.map(r => r.name).join("、")}`;
-      const errMsg = errors.length ? `<br><span style="color:var(--danger)">警告：${errors.join("；")}</span>` : "";
+      const successMsg = `成功导入 ${regions.length} 个地区的邮费：${regions.map(r => escapeHtml(r.name)).join("、")}`;
+      const errMsg = errors.length ? `<br><span style="color:var(--danger)">警告：${errors.map(escapeHtml).join("；")}</span>` : "";
       setShippingExcelStatus(successMsg + errMsg, false);
       showToast("邮费 Excel 导入成功");
     } catch (err) {
-      setShippingExcelStatus("导入失败：" + err.message, true);
+      setShippingExcelStatus("导入失败：" + escapeHtml(err.message), true);
       showToast("邮费 Excel 导入失败");
     }
     if (els.importShippingExcelFile) els.importShippingExcelFile.value = "";
