@@ -6,11 +6,11 @@
   <meta name="googlebot" content="noindex, nofollow">
   <!-- P0 安全：CSP 策略（v7.9：SheetJS 已本地化，script-src 仅允许 'self'，离线双击打开亦可用） -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';">
-  <title>KOKALabel报价系统 v8.10.0</title>
-  <link rel="icon" type="image/x-icon" href="favicon.ico?v=8.10.0">
-  <link rel="icon" type="image/png" href="favicon.png?v=8.10.0">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=8.10.0">
-  <link rel="stylesheet" href="css/style.css?v=8.10.0">
+  <title>KOKALabel报价系统 v8.11.0</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico?v=8.11.0">
+  <link rel="icon" type="image/png" href="favicon.png?v=8.11.0">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=8.11.0">
+  <link rel="stylesheet" href="css/style.css?v=8.11.0">
 </head>
 <body>
   <!-- 顶部导航 -->
@@ -1101,8 +1101,19 @@
   <!-- 提示条 -->
   <div class="toast" id="toast"></div>
 
+  <!-- P1 访问控制：前端口令门遮罩（ACCESS_ENABLED=true 时由 app.js 显示） -->
+  <div class="access-gate" id="access-gate" hidden>
+    <div class="access-gate-card">
+      <h2 class="access-gate-title">KOKALabel 报价系统</h2>
+      <p class="access-gate-desc">本系统包含价格数据，请输入访问口令</p>
+      <input type="password" id="access-gate-input" class="access-gate-input" placeholder="访问口令" autocomplete="off">
+      <button type="button" id="access-gate-submit" class="access-gate-btn">进入系统</button>
+      <p class="access-gate-error" id="access-gate-error" role="alert"></p>
+    </div>
+  </div>
+
   <!-- v7.9: SheetJS 本地化（离线双击打开亦可导出/导入 Excel），先于业务脚本加载，XLSX 全局可用 -->
-  <script src="js/vendor/xlsx.full.min.js?v=8.10.0"></script>
-  <script src="js/data.js?v=8.10.0"></script>
-  <script src="js/app.js?v=8.10.0"></script>
+  <script src="js/vendor/xlsx.full.min.js?v=8.11.0"></script>
+  <script src="js/data.js?v=8.11.0"></script>
+  <script src="js/app.js?v=8.11.0"></script>
 </body></html>

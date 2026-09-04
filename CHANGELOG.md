@@ -1,5 +1,21 @@
 # KOKALabel 报价系统 变更日志
 
+## v8.11.0（2026-09-04）
+
+### 数据防篡改（P1）
+
+- **导出完整性签名**：完整配置 / 本地备份导出时经 `signExport` 对数据体计算 `sha256Hex(canonicalJson(payload))` 写入 `meta.integrity`；导入时重算比对，篡改或损坏即阻断并提示；旧版无 `integrity` 字段的备份仍可恢复，并提示「无完整性校验」。
+- **稳定序列化 + SHA-256**：`data.js` 新增纯 JS 同步实现 `canonicalJson`（对象键升序、数组保序、去空白）与 `sha256Hex`（无依赖，HTTPS 与离线 file:// 均可用）。
+
+### 访问控制 · 前端口令门（P1）
+
+- `index.html` 增加全屏口令遮罩，`app.js` 启动时校验 `sessionStorage["tagPricing_unlocked"]`，未解锁先要求口令（`sha256Hex(ACCESS_SALT + 口令)` 比对）再初始化界面；解锁仅写 sessionStorage（关页失效），不做持久免密。
+- `data.js` 顶部新增 `ACCESS_ENABLED / ACCESS_SALT / ACCESS_PASSCODE_HASH` 占位（默认 `ACCESS_ENABLED=false` 关闭，附生成哈希与替换说明）。此门只防「打开直接看到」，真正保密需在 Cloudflare Access 开边缘鉴权。
+
+### 测试
+
+- 新增 `tests/integrity.test.mjs`（SHA-256 标准向量 + canonicalJson + 导出签名/导入校验回归），全量单测 18 项全绿。
+
 ## v8.10.0（2026-09-04）
 
 ### 安全加固（P0）

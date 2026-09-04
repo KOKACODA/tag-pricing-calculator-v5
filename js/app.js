@@ -2698,6 +2698,24 @@ function downloadJson(data, filename) {
   URL.revokeObjectURL(url);
 }
 
+// -------------------- P1 数据防篡改：导出签名 / 导入校验 --------------------
+// 导出：对 payload 计算稳定序列化哈希，作为 meta.integrity 一并写入（不深拷贝顶层外引用）。
+function signExport(payload, kind) {
+  const integrity = sha256Hex(canonicalJson(payload));
+  return { ...payload, meta: { algorithm: "sha256", integrity, kind, exportedAt: new Date().toISOString() } };
+}
+
+// 导入：校验 meta.integrity，返回 "ok" | "legacy"（旧版无完整性字段，允许但提示）| "tampered"。
+function verifyImportIntegrity(data) {
+  if (!data || typeof data !== "object" || !data.meta || data.meta.algorithm !== "sha256" ||
+      typeof data.meta.integrity !== "string") {
+    return "legacy";
+  }
+  const rest = { ...data };
+  delete rest.meta;
+  return sha256Hex(canonicalJson(rest)) === data.meta.integrity ? "ok" : "tampered";
+}
+
 // -------------------- 数据管理：标签页 --------------------
 function switchTab(tabName) {
   els.tabs.forEach(t => t.classList.toggle("active", t.dataset.tab === tabName));
@@ -3215,7 +3233,7 @@ function setLocalBackupStatus(html, isError) {
 }
 
 function exportLocalBackup() {
-  const data = {
+  const payload = {
     version: "8.1.0",
     kind: "local-backup",
     exportAt: new Date().toISOString(),
@@ -3230,7 +3248,7 @@ function exportLocalBackup() {
     snapshots: getSnapshots(),
     history: getHistory()
   };
-  downloadJson(data, "KOKALabel本地备份_" + formatDateFile() + ".json");
+  downloadJson(signExport(payload, "local-backup"), "KOKALabel本地备份_" + formatDateFile() + ".json");
   setLocalBackupStatus(`已保存到本地文件（${new Date().toLocaleString()}）。建议同时存一份到 U 盘 / 网盘。`, false);
   showToast("本地备份已下载");
 }
@@ -3369,6 +3387,13 @@ function importLocalBackup(file) {
   reader.onload = e => {
     try {
       const data = JSON.parse(e.target.result);
+      const integrityStatus = verifyImportIntegrity(data);
+      if (integrityStatus === "tampered") {
+        setLocalBackupStatus("完整性校验失败：文件可能已被篡改或损坏，已拒绝恢复", true);
+        showToast("恢复被拒绝：完整性校验失败");
+        if (els.importLocalBackupFile) els.importLocalBackupFile.value = "";
+        return;
+      }
       validateImportedData(data);
       if (data.kind && data.kind !== "local-backup" && data.kind !== "full-config") {
         throw new Error("文件类型不匹配，请使用「保存到本地文件」生成的文件");
@@ -3425,7 +3450,7 @@ function importLocalBackup(file) {
       renderHistory();
       onCalculate();
       setLocalBackupStatus(`已从本地文件恢复：${escapeHtml(file.name)}（${new Date().toLocaleString()}）`, false);
-      showToast("本地备份已恢复");
+      showToast(integrityStatus === "legacy" ? "本地备份已恢复（旧版文件，无完整性校验）" : "本地备份已恢复");
     } catch (err) {
       setLocalBackupStatus("恢复失败：" + escapeHtml(err.message), true);
       showToast("本地备份恢复失败");
@@ -3441,8 +3466,9 @@ function importLocalBackup(file) {
 
 // -------------------- 导入 / 导出完整配置 --------------------
 function exportFullData() {
-  const data = {
+  const payload = {
     version: "8.1.0",
+    kind: "full-config",
     exportAt: new Date().toISOString(),
     priceLists: PRICE_LISTS,
     currentPriceListId: CURRENT_PRICE_LIST_ID,
@@ -3455,7 +3481,7 @@ function exportFullData() {
     snapshots: getSnapshots(),
     history: getHistory()
   };
-  downloadJson(data, "KOKALabel完整配置_" + formatDateFile() + ".json");
+  downloadJson(signExport(payload, "full-config"), "KOKALabel完整配置_" + formatDateFile() + ".json");
   showToast("完整配置已导出");
 }
 
@@ -3466,6 +3492,11 @@ function importFullData(file) {
   reader.onload = e => {
     try {
       const data = JSON.parse(e.target.result);
+      const integrityStatus = verifyImportIntegrity(data);
+      if (integrityStatus === "tampered") {
+        showToast("完整性校验失败：文件可能已被篡改或损坏，已拒绝导入");
+        return;
+      }
       // v6.6：全量导入同样执行数据校验（与本地备份恢复一致），防止损坏/恶意 JSON 导致崩溃
       validateImportedData(data);
       // 还原报价表组结构
@@ -3518,7 +3549,7 @@ function importFullData(file) {
       renderSnapshots();
       renderHistory();
       onCalculate();
-      showToast("配置导入成功");
+      showToast(integrityStatus === "legacy" ? "配置导入成功（旧版文件，无完整性校验）" : "配置导入成功");
     } catch (err) {
       showToast("JSON 解析失败，请检查文件格式");
     }
@@ -4634,9 +4665,37 @@ function bindEvents() {
   }, { passive: false });
 }
 
+// -------------------- P1 访问控制：前端口令门 --------------------
+function isAccessUnlocked() {
+  return !ACCESS_ENABLED || sessionStorage.getItem("tagPricing_unlocked") === "1";
+}
+
+function showAccessGate(onUnlocked) {
+  const gate = document.getElementById("access-gate");
+  const input = document.getElementById("access-gate-input");
+  const submit = document.getElementById("access-gate-submit");
+  const error = document.getElementById("access-gate-error");
+  if (!gate || !input || !submit) { onUnlocked(); return; }
+  gate.hidden = false;
+  input.focus();
+
+  const tryUnlock = () => {
+    if (sha256Hex(ACCESS_SALT + (input.value || "")) === ACCESS_PASSCODE_HASH) {
+      sessionStorage.setItem("tagPricing_unlocked", "1");
+      gate.hidden = true;
+      onUnlocked();
+    } else {
+      if (error) error.textContent = "口令错误，请重试";
+      input.select();
+    }
+  };
+  submit.addEventListener("click", tryUnlock);
+  input.addEventListener("keydown", e => { if (e.key === "Enter") tryUnlock(); });
+}
+
 // -------------------- 启动 --------------------
 // 兜底：任何 init 步骤失败不影响其他步骤，错误会显示在控制台
-(function safeInit() {
+function bootApp() {
   const steps = [
     ["initOptions", initOptions],
     ["updateDefaultTierOptions", updateDefaultTierOptions],
@@ -4681,4 +4740,10 @@ function bindEvents() {
   // 初始化完成后触发一次计算，确保页面有结果显示
   try { onCalculate(); }
   catch (e) { console.error("[init] onCalculate 失败:", e); }
-})();
+}
+
+if (isAccessUnlocked()) {
+  bootApp();
+} else {
+  showAccessGate(bootApp);
+}

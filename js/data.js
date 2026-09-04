@@ -4,6 +4,23 @@
 "use strict";
 
 // ============================================================
+// ================== P1 访问控制配置（口令门） ==================
+// ============================================================
+// 启用口令门：将 ACCESS_ENABLED 置为 true，并把 ACCESS_PASSCODE_HASH
+// 替换为真实口令的哈希。哈希算法：sha256Hex(ACCESS_SALT + 口令)（64 位小写 hex）。
+//
+// 【如何生成哈希】本页尚未启用门时，用浏览器打开后按 F12 进入控制台执行：
+//     sha256Hex(ACCESS_SALT + "你的口令")
+// 将输出的 64 位小写十六进制字符串填入下方 ACCESS_PASSCODE_HASH。
+//
+// 【重要边界】纯前端口令门只能防止「打开页面直接看到」，无法真正保密价格——
+// 源码、盐值、哈希均会下发到浏览器，坚定攻击者可阅读源码绕过。
+// 真正保密务必在 Cloudflare Access 开启边缘鉴权（见 docs/HANDOFF-v8.md 安全章节）。
+const ACCESS_ENABLED = false;
+const ACCESS_SALT = "koka-label-gate";
+const ACCESS_PASSCODE_HASH = "REPLACE_WITH_SHA256_HEX_LOWERCASE";
+
+// ============================================================
 // ===================== 价格配置区（唯一维护区） =====================
 // ============================================================
 // 【调价仅修改此区域】后续调整价格、纸张、工艺、邮费、客户等级时，
@@ -10488,6 +10505,69 @@ const DEFAULT_DIRECT_COEFF_LEVELS = [
  * 纸张按报价表隔离（通过 priceListId 字段），吊绳/邮费/客户等级为全局共享。
  * EPHEMERAL_KEYS 已提前定义为空数组，不拦截任何 key。
  */
+
+// -------------------- P1 数据防篡改：稳定序列化 + SHA-256 --------------------
+
+// 稳定序列化：对象键升序、数组保序、无空白，用于导出完整性哈希（键顺序不影响结果）。
+function canonicalJson(value) {
+  if (value === undefined) return "null";
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return "[" + value.map(canonicalJson).join(",") + "]";
+  const keys = Object.keys(value).filter(k => value[k] !== undefined).sort();
+  return "{" + keys.map(k => JSON.stringify(k) + ":" + canonicalJson(value[k])).join(",") + "}";
+}
+
+// 同步 SHA-256（纯 JS 无依赖，HTTPS 与离线 file:// 均可用），返回 64 位小写 hex。
+function sha256Hex(str) {
+  const K = [
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+  ];
+  const rotr = (x, n) => (x >>> n) | (x << (32 - n));
+  const bytes = new TextEncoder().encode(String(str));
+  const bitLenHi = Math.floor(bytes.length / 0x20000000);
+  const bitLenLo = (bytes.length << 3);
+  const paddedLen = Math.ceil((bytes.length + 9) / 64) * 64;
+  const buf = new Uint8Array(paddedLen);
+  buf.set(bytes);
+  buf[bytes.length] = 0x80;
+  const dv = new DataView(buf.buffer);
+  dv.setUint32(paddedLen - 8, bitLenHi);
+  dv.setUint32(paddedLen - 4, bitLenLo);
+
+  let h0 = 0x6a09e667, h1 = 0xbb67ae85, h2 = 0x3c6ef372, h3 = 0xa54ff53a,
+      h4 = 0x510e527f, h5 = 0x9b05688c, h6 = 0x1f83d9ab, h7 = 0x5be0cd19;
+  const w = new Uint32Array(64);
+
+  for (let i = 0; i < buf.length; i += 64) {
+    for (let t = 0; t < 16; t++) w[t] = dv.getUint32(i + t * 4);
+    for (let t = 16; t < 64; t++) {
+      const s0 = rotr(w[t - 15], 7) ^ rotr(w[t - 15], 18) ^ (w[t - 15] >>> 3);
+      const s1 = rotr(w[t - 2], 17) ^ rotr(w[t - 2], 19) ^ (w[t - 2] >>> 10);
+      w[t] = (w[t - 16] + s0 + w[t - 7] + s1) | 0;
+    }
+    let a = h0, b = h1, c = h2, d = h3, e = h4, f = h5, g = h6, h = h7;
+    for (let t = 0; t < 64; t++) {
+      const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
+      const ch = (e & f) ^ (~e & g);
+      const temp1 = (h + S1 + ch + K[t] + w[t]) | 0;
+      const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
+      const maj = (a & b) ^ (a & c) ^ (b & c);
+      const temp2 = (S0 + maj) | 0;
+      h = g; g = f; f = e; e = (d + temp1) | 0; d = c; c = b; b = a; a = (temp1 + temp2) | 0;
+    }
+    h0 = (h0 + a) | 0; h1 = (h1 + b) | 0; h2 = (h2 + c) | 0; h3 = (h3 + d) | 0;
+    h4 = (h4 + e) | 0; h5 = (h5 + f) | 0; h6 = (h6 + g) | 0; h7 = (h7 + h) | 0;
+  }
+  return [h0, h1, h2, h3, h4, h5, h6, h7]
+    .map(x => (x >>> 0).toString(16).padStart(8, "0")).join("");
+}
 
 function saveToStorage(key, value) {
   if (EPHEMERAL_KEYS.includes(key)) return; // 空数组，不拦截任何 key
