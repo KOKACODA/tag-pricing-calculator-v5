@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v9.1.0 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v9.4.0 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -801,6 +801,12 @@ const els = {
   manualShippingInput: document.getElementById("manualShippingInput"),
   manualShippingDesc: document.getElementById("manualShippingDesc"),
   manualShippingConfirm: document.getElementById("manualShippingConfirm"),
+  // v9.4：统计报表
+  openStatsBtn: document.getElementById("openStatsBtn"),
+  statsDialog: document.getElementById("statsDialog"),
+  statsContent: document.getElementById("statsContent"),
+  statsCloseBtn: document.getElementById("statsCloseBtn"),
+  statsCancelBtn: document.getElementById("statsCancelBtn"),
   // 模式切换
   modeBtns: document.querySelectorAll(".mode-btn"),
   // 报价结果中需要模式控制的行
@@ -2950,6 +2956,175 @@ function canReloadHistoryRecord(record) {
   return !!(record?.inputs && Array.isArray(record.inputs.sheets) && record.inputs.sheets.length);
 }
 
+// -------------------- v9.4 统计报表 --------------------
+function parseStatSize(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function collectRecordSizes(record) {
+  const sizes = [];
+  const sheets = record?.inputs?.sheets;
+  if (Array.isArray(sheets)) {
+    sheets.forEach(sheet => {
+      const w = parseStatSize(sheet.width);
+      const l = parseStatSize(sheet.length);
+      if (w > 0 && l > 0) sizes.push(w + "×" + l);
+    });
+  }
+  if (!sizes.length && Array.isArray(record?.snapshot?.sheetDetails)) {
+    record.snapshot.sheetDetails.forEach(sd => {
+      const w = parseStatSize(sd.width);
+      const l = parseStatSize(sd.length);
+      if (w > 0 && l > 0) sizes.push(w + "×" + l);
+    });
+  }
+  return sizes;
+}
+
+function computeStats() {
+  const list = getHistory();
+  const monthMap = new Map();
+  const sizeMap = new Map();
+  const profits = [];
+
+  list.forEach(record => {
+    const date = new Date(record.createdAt);
+    if (!isNaN(date.getTime())) {
+      const key = date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0");
+      monthMap.set(key, (monthMap.get(key) || 0) + 1);
+    }
+    collectRecordSizes(record).forEach(size => {
+      sizeMap.set(size, (sizeMap.get(size) || 0) + 1);
+    });
+    const cost = getHistoryRecordCost(record);
+    const price = getHistoryRecordPrimaryPrice(record);
+    if (cost != null && price != null) {
+      profits.push({ cost, price, profit: price - cost });
+    }
+  });
+
+  const months = Array.from(monthMap.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+
+  const sizes = Array.from(sizeMap.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+
+  return { totalCount: list.length, months, sizes, profits };
+}
+
+function renderStatBarChart(items, unit) {
+  const max = items.reduce((m, item) => Math.max(m, item.count), 0);
+  if (!items.length || max <= 0) return '<div class="empty-state">暂无数据</div>';
+  return items.map(item => {
+    const width = Math.round((item.count / max) * 100);
+    return `
+      <div class="stat-bar-row">
+        <span class="stat-bar-label" title="${escapeHtml(item.label)}">${escapeHtml(item.label)}</span>
+        <span class="stat-bar-track"><span class="stat-bar-fill" style="width:${width}%"></span></span>
+        <span class="stat-bar-value">${item.count}${unit ? " " + unit : ""}</span>
+      </div>`;
+  }).join("");
+}
+
+function renderProfitBars(profits) {
+  const brackets = [
+    { label: "亏损", test: v => v < 0 },
+    { label: "0~50 元", test: v => v >= 0 && v < 50 },
+    { label: "50~100 元", test: v => v >= 50 && v < 100 },
+    { label: "100~200 元", test: v => v >= 100 && v < 200 },
+    { label: "200 元以上", test: v => v >= 200 }
+  ];
+  const counts = brackets.map(bracket => profits.filter(p => bracket.test(p.profit)).length);
+  const items = brackets.map((bracket, i) => ({ label: bracket.label, count: counts[i] }));
+  if (!profits.length) return '<div class="empty-state">暂无有效利润数据</div>';
+  return renderStatBarChart(items, "单");
+}
+
+function renderStats() {
+  if (!els.statsContent) return;
+  const stats = computeStats();
+
+  if (!stats.totalCount) {
+    els.statsContent.innerHTML = `
+      <div class="empty-state">
+        <div style="font-size:32px;margin-bottom:10px;">📊</div>
+        还没有保存过报价记录。<br>完成报价后点击「保存报价」，统计报表会自动汇总。
+      </div>`;
+    return;
+  }
+
+  const validProfit = stats.profits;
+  const sumProfit = validProfit.reduce((sum, p) => sum + p.profit, 0);
+  const avgProfit = validProfit.length ? sumProfit / validProfit.length : 0;
+  const maxProfit = validProfit.length ? Math.max(...validProfit.map(p => p.profit)) : 0;
+  const minProfit = validProfit.length ? Math.min(...validProfit.map(p => p.profit)) : 0;
+
+  els.statsContent.innerHTML = `
+    <div class="stat-panel">
+      <div class="stat-panel-header">
+        <span class="stat-panel-title">📅 月度报价次数</span>
+        <span class="stat-panel-sub">共 ${stats.totalCount} 条报价记录</span>
+      </div>
+      ${renderStatBarChart(stats.months, "次")}
+    </div>
+
+    <div class="stat-panel">
+      <div class="stat-panel-header">
+        <span class="stat-panel-title">📐 热销尺寸</span>
+        <span class="stat-panel-sub">吊牌展开尺寸（宽×长，mm）</span>
+      </div>
+      ${renderStatBarChart(stats.sizes.slice(0, 8), "次")}
+    </div>
+
+    <div class="stat-panel">
+      <div class="stat-panel-header">
+        <span class="stat-panel-title">💰 利润分布</span>
+        <span class="stat-panel-sub">建议报价 − 成本</span>
+      </div>
+      <div class="stat-summary">
+        <div class="stat-summary-item">
+          <div class="stat-summary-label">有效利润记录</div>
+          <div class="stat-summary-value">${validProfit.length}</div>
+        </div>
+        <div class="stat-summary-item">
+          <div class="stat-summary-label">平均单笔利润</div>
+          <div class="stat-summary-value">${formatHistoryMoney(avgProfit)}</div>
+        </div>
+        <div class="stat-summary-item">
+          <div class="stat-summary-label">累计利润</div>
+          <div class="stat-summary-value">${formatHistoryMoney(sumProfit)}</div>
+        </div>
+        <div class="stat-summary-item">
+          <div class="stat-summary-label">单笔最高 / 最低</div>
+          <div class="stat-summary-value">${formatHistoryMoney(maxProfit)} / ${formatHistoryMoney(minProfit)}</div>
+        </div>
+      </div>
+      ${renderProfitBars(validProfit)}
+    </div>`;
+}
+
+function openStatsDialog() {
+  if (!els.statsDialog) return;
+  renderStats();
+  if (typeof els.statsDialog.showModal === "function") {
+    els.statsDialog.showModal();
+  } else {
+    els.statsDialog.setAttribute("open", "");
+  }
+}
+
+function closeStatsDialog() {
+  if (!els.statsDialog) return;
+  if (typeof els.statsDialog.close === "function" && els.statsDialog.open) {
+    els.statsDialog.close();
+  } else {
+    els.statsDialog.removeAttribute("open");
+  }
+}
+
 function renderHistory() {
   const list = getHistory();
   if (!els.historyTable || !els.historyEmpty) return;
@@ -3247,7 +3422,7 @@ function setLocalBackupStatus(html, isError) {
 
 function exportLocalBackup() {
 const payload = {
-    version: "9.1.0",
+    version: "9.4.0",
     kind: "local-backup",
     exportAt: new Date().toISOString(),
     priceLists: PRICE_LISTS,
@@ -3480,7 +3655,7 @@ function importLocalBackup(file) {
 // -------------------- 导入 / 导出完整配置 --------------------
 function exportFullData() {
 const payload = {
-    version: "9.1.0",
+    version: "9.4.0",
     kind: "full-config",
     exportAt: new Date().toISOString(),
     priceLists: PRICE_LISTS,
@@ -4597,6 +4772,22 @@ function bindEvents() {
     });
     els.historyDetailDialog.addEventListener("close", () => {
       activeHistoryRecordId = null;
+    });
+  }
+
+  // v9.4：统计报表事件
+  if (els.openStatsBtn) {
+    els.openStatsBtn.addEventListener("click", openStatsDialog);
+    els.openStatsBtn.addEventListener("keydown", e => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openStatsDialog(); }
+    });
+  }
+  [els.statsCloseBtn, els.statsCancelBtn].forEach(btn => {
+    if (btn) btn.addEventListener("click", closeStatsDialog);
+  });
+  if (els.statsDialog) {
+    els.statsDialog.addEventListener("click", event => {
+      if (event.target === els.statsDialog) closeStatsDialog();
     });
   }
 

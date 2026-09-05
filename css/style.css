@@ -1,4 +1,4 @@
-/* KOKALabel报价系统 v9.1.0 - 样式表 */
+/* KOKALabel报价系统 v9.4.0 - 样式表 */
 
 /* ===================== 全局变量与重置 ===================== */
     :root {
@@ -2088,6 +2088,152 @@
     .history-dialog-footer {
       justify-content: flex-end;
       border-top: 1px solid var(--border);
+    }
+
+    /* ===================== v9.4 统计报表 ===================== */
+    .stats-footer-note {
+      margin-right: auto;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .stats-content {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .stat-panel {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+    }
+
+    .stat-panel-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .stat-panel-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--brand-dark);
+    }
+
+    .stat-panel-sub {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .stat-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .stat-summary-item {
+      flex: 1 1 120px;
+      background: #fafcff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+    }
+
+    .stat-summary-label {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-bottom: 2px;
+    }
+
+    .stat-summary-value {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--brand-dark);
+    }
+
+    .stat-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 4px 0;
+    }
+
+    .stat-bar-label {
+      flex: 0 0 96px;
+      text-align: right;
+      font-size: 12px;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .stat-bar-track {
+      flex: 1;
+      background: var(--brand-light);
+      border-radius: 6px;
+      height: 18px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .stat-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--brand), var(--brand-dark));
+      border-radius: 6px;
+      min-width: 2px;
+      transition: width 0.3s ease;
+    }
+
+    .stat-bar-value {
+      flex: 0 0 60px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      text-align: left;
+    }
+
+    .stat-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+      gap: 10px;
+    }
+
+    .stat-list-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: #fafcff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+    }
+
+    .stat-list-item-name {
+      font-size: 13px;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .stat-list-item-count {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--brand-dark);
+    }
+
+    .stat-profitable {
+      color: var(--success);
+    }
+
+    .stat-loss {
+      color: var(--danger);
     }
 
     .shipping-dialog {

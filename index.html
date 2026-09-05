@@ -6,11 +6,11 @@
   <meta name="googlebot" content="noindex, nofollow">
   <!-- P0 安全：CSP 策略（v7.9：SheetJS 已本地化，script-src 仅允许 'self'，离线双击打开亦可用） -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';">
-<title>KOKALabel报价系统 v9.1.0</title>
-  <link rel="icon" type="image/x-icon" href="favicon.ico?v=9.1.0">
-  <link rel="icon" type="image/png" href="favicon.png?v=9.1.0">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=9.1.0">
-  <link rel="stylesheet" href="css/style.css?v=9.1.0">
+<title>KOKALabel报价系统 v9.4.0</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico?v=9.4.0">
+  <link rel="icon" type="image/png" href="favicon.png?v=9.4.0">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=9.4.0">
+  <link rel="stylesheet" href="css/style.css?v=9.4.0">
 </head>
 <body>
   <!-- 顶部导航 -->
@@ -969,7 +969,7 @@
             <div class="feature-title">订单管理</div>
             <div class="feature-desc">从报价一键生成订单、状态跟踪</div>
           </div>
-          <div class="feature-card" data-toast="统计报表功能占位">
+          <div class="feature-card" id="openStatsBtn" role="button" tabindex="0" title="打开统计报表（数据仅保存在本地）">
             <div class="feature-icon">📊</div>
             <div class="feature-title">统计报表</div>
             <div class="feature-desc">月度报价次数、热销尺寸、利润分析</div>
@@ -994,7 +994,7 @@
           <div class="setting-row">
             <div class="setting-info">
               <div class="setting-label">当前版本</div>
-              <div class="setting-desc">KOKALabel报价系统 v9.1.0</div>
+              <div class="setting-desc">KOKALabel报价系统 v9.4.0</div>
             </div>
             <div class="setting-control">
               <span class="placeholder-badge">正式版</span>
@@ -1098,6 +1098,24 @@
     </div>
   </dialog>
 
+  <!-- v9.4：统计报表（数据仅来自本地保存的报价历史，不上传云端） -->
+  <dialog class="history-dialog" id="statsDialog" aria-labelledby="statsTitle">
+    <div class="history-dialog-shell">
+      <header class="history-dialog-header">
+        <div>
+          <span class="history-dialog-kicker">基于本地已保存的报价记录</span>
+          <h2 id="statsTitle">统计报表</h2>
+        </div>
+        <button type="button" class="history-dialog-close" id="statsCloseBtn" aria-label="关闭统计报表">×</button>
+      </header>
+      <div class="history-dialog-content stats-content" id="statsContent"></div>
+      <footer class="history-dialog-footer">
+        <span class="stats-footer-note">数据仅保存在本机浏览器，绝不上传</span>
+        <button type="button" class="btn secondary" id="statsCancelBtn">关闭</button>
+      </footer>
+    </div>
+  </dialog>
+
   <!-- 提示条 -->
   <div class="toast" id="toast"></div>
 
@@ -1113,7 +1131,7 @@
   </div>
 
   <!-- v7.9: SheetJS 本地化（离线双击打开亦可导出/导入 Excel），先于业务脚本加载，XLSX 全局可用 -->
-<script src="js/vendor/xlsx.full.min.js?v=9.1.0"></script>
-  <script src="js/data.js?v=9.1.0"></script>
-  <script src="js/app.js?v=9.1.0"></script>
+<script src="js/vendor/xlsx.full.min.js?v=9.4.0"></script>
+  <script src="js/data.js?v=9.4.0"></script>
+  <script src="js/app.js?v=9.4.0"></script>
 </body></html>
