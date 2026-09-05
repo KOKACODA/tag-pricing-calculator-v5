@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v9.4.1 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v9.4.2 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -3138,7 +3138,7 @@ function exportSnapshotSet() {
     showToast("暂无快照可导出");
     return;
   }
-  const payload = signExport({ version: "9.4.1", count: list.length, snapshots: list }, "snapshots-export");
+  const payload = signExport({ version: "9.4.2", count: list.length, snapshots: list }, "snapshots-export");
   downloadJson(payload, "KOKALabel快照_" + formatDateFile() + ".json");
   showToast("快照已导出");
 }
@@ -3467,7 +3467,7 @@ function setLocalBackupStatus(html, isError) {
 
 function exportLocalBackup() {
   const payload = {
-    version: "9.4.1",
+    version: "9.4.2",
     kind: "local-backup",
     exportAt: new Date().toISOString(),
     priceLists: PRICE_LISTS,
@@ -3701,7 +3701,7 @@ function importLocalBackup(file) {
 // -------------------- 导入 / 导出完整配置 --------------------
 function exportFullData() {
   const payload = {
-    version: "9.4.1",
+    version: "9.4.2",
     kind: "full-config",
     exportAt: new Date().toISOString(),
     priceLists: PRICE_LISTS,

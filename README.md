@@ -6,7 +6,7 @@
 
 ## 线上体验
 
-- 最新版（v9.4.1）：https://tag-pricing-calculator-v5.pages.dev
+- 最新版（v9.4.2）：https://tag-pricing-calculator-v5.pages.dev
 
 ## 功能一览
 
@@ -25,10 +25,10 @@
 
 | 分支 | 版本 | 状态 |
 |---|---|---|
-| `v8` | v9.4.1 | **当前线上版本**，在此开发 |
-| `main` | v7.10 | 旧谱系存档 |
+| `v8` | v9.4.2 | **当前线上版本**，在此开发 |
+| `main` | v9.4.2 | 已与 `v8` 同步（v9.4.2 起） |
 
-> 两条谱系无共同提交，请勿跨分支 merge。
+> 旧 v7.10 谱系（v1.0 → v7.10，独立 git 历史）不再保留于 `main`，其历史可经本地备份 tag `archive/v7.10-main` 追溯，完整记录见 `docs/项目历史与技术总档案.md` 与 `docs/main-branch-summary.md`。
 
 ## 快速开始
 
@@ -54,11 +54,14 @@ python3 -m http.server 8080
 ├── AGENTS.md                   # AI Agent 接手只读入口
 ├── CHANGELOG.md                # 变更日志
 └── docs/
+    ├── 项目历史与技术总档案.md   # 全量历史+技术+转手方案（总纲）
     ├── HANDOFF-v8.md           # 转手/交接文档
     ├── 项目总结.md             # 项目技术总结
-    ├── main-branch-summary.md  # main 分支（v7.10 旧谱系）历史档案
+    ├── main-branch-summary.md  # v7.10 旧谱系历史档案
     ├── 归档说明-v8.md          # v8 谱系迁移
-    └── 问题日志.md             # 已知问题
+    ├── 部署日志.md             # 部署与运维记录
+    ├── 问题日志.md             # 已知问题
+    └── plans/                  # 历史设计文档
 ```
 
 ## 验证
@@ -71,9 +74,10 @@ node --test tests/*.test.mjs        # 单元测试
 ## 更多文档
 
 - AI Agent 接手入口：[AGENTS.md](AGENTS.md)
+- 全量历史与技术总档案：[docs/项目历史与技术总档案.md](docs/项目历史与技术总档案.md)
 - 转手/交接文档：[docs/HANDOFF-v8.md](docs/HANDOFF-v8.md)
 - 技术细节：[docs/项目总结.md](docs/项目总结.md)
-- main 分支历史档案：[docs/main-branch-summary.md](docs/main-branch-summary.md)
+- v7.10 旧谱系历史档案：[docs/main-branch-summary.md](docs/main-branch-summary.md)
 - 版本历史：[CHANGELOG.md](CHANGELOG.md)
 
 ---
