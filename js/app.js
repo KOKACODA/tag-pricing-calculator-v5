@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v7.9.0 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v9.1.0 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -1754,27 +1754,40 @@ function renderCustomCoeffCard() {
     els.customPriceCard.innerHTML = "";
     return;
   }
-  let price;
-  let label;
+  const costIncomplete = _lastResult.costIncomplete;
+  const missingHtml = '<span class="price-missing">部分缺价</span>';
+  let html;
   if (hasShipOverride) {
-    // v8.1：同时填写了邮费快速修改 → 先用新邮费重算总成本，再乘临时系数
+    // 同时填写临时系数 + 邮费快速修改：并排显示两种算法
     const origShipping = _lastResult.shippingPrice || 0;
-    const newCost = _lastResult.cost - origShipping + newShipping;
-    price = newCost * coeff;
-    label = `临时系数 ${coeff} · 新邮费 ¥${formatMoney(newShipping)}`;
+    // 算法1（v8.1 现有）：邮费也参与乘系数 → (原成本 − 原邮费 + 新邮费) × 系数
+    const price1 = (_lastResult.cost - origShipping + newShipping) * coeff;
+    // 算法2（v9.0 新增）：邮费不乘系数 → (原成本 − 原邮费) × 系数 + 新邮费
+    const base = (_lastResult.cost - origShipping) * coeff;
+    const price2 = base + newShipping;
+    html = `
+      <div class="price-card custom-coeff">
+        <span class="coeff-badge">×${coeff}</span>
+        <div class="level-name">改邮费后成本 ×${coeff}<span class="level-sub">（含新邮费一起乘）</span></div>
+        <div class="level-price">${costIncomplete ? missingHtml : formatMoney(price1) + '<span class="unit">元</span>'}</div>
+      </div>
+      <div class="price-card custom-coeff coeff-shipping-later">
+        <span class="coeff-badge">×${coeff}</span>
+        <div class="level-name">改后成本 ×${coeff} + 新邮费<span class="level-sub">（邮费不乘系数）</span></div>
+        <div class="level-price">${costIncomplete ? missingHtml : formatMoney(price2) + '<span class="unit">元</span>'}</div>
+      </div>
+    `;
   } else {
-    price = _lastResult.cost * coeff;
-    label = `临时系数 ${coeff}`;
+    const price = _lastResult.cost * coeff;
+    html = `
+      <div class="price-card custom-coeff">
+        <span class="coeff-badge">×${coeff}</span>
+        <div class="level-name">临时系数 ${coeff}</div>
+        <div class="level-price">${costIncomplete ? missingHtml : formatMoney(price) + '<span class="unit">元</span>'}</div>
+      </div>
+    `;
   }
-  els.customPriceCard.innerHTML = `
-    <div class="price-card custom-coeff">
-      <span class="coeff-badge">×${coeff}</span>
-      <div class="level-name">${label}</div>
-      <div class="level-price">${_lastResult.costIncomplete
-        ? '<span class="price-missing">部分缺价</span>'
-        : formatMoney(price) + '<span class="unit">元</span>'}</div>
-    </div>
-  `;
+  els.customPriceCard.innerHTML = html;
   els.customPriceCard.style.display = "flex";
 }
 
@@ -3233,8 +3246,8 @@ function setLocalBackupStatus(html, isError) {
 }
 
 function exportLocalBackup() {
-  const payload = {
-    version: "8.1.0",
+const payload = {
+    version: "9.1.0",
     kind: "local-backup",
     exportAt: new Date().toISOString(),
     priceLists: PRICE_LISTS,
@@ -3466,8 +3479,8 @@ function importLocalBackup(file) {
 
 // -------------------- 导入 / 导出完整配置 --------------------
 function exportFullData() {
-  const payload = {
-    version: "8.1.0",
+const payload = {
+    version: "9.1.0",
     kind: "full-config",
     exportAt: new Date().toISOString(),
     priceLists: PRICE_LISTS,
