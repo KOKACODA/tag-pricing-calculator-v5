@@ -1,5 +1,5 @@
 // ============================================================
-// KOKALabel报价系统 v9.4.0 - 主程序（计算 + 渲染 + 交互 + 初始化）
+// KOKALabel报价系统 v9.4.1 - 主程序（计算 + 渲染 + 交互 + 初始化）
 // ============================================================
 "use strict";
 
@@ -801,12 +801,10 @@ const els = {
   manualShippingInput: document.getElementById("manualShippingInput"),
   manualShippingDesc: document.getElementById("manualShippingDesc"),
   manualShippingConfirm: document.getElementById("manualShippingConfirm"),
-  // v9.4：统计报表
-  openStatsBtn: document.getElementById("openStatsBtn"),
-  statsDialog: document.getElementById("statsDialog"),
+  // v9.4：统计报表（内联到「快照与统计报表」框体）
   statsContent: document.getElementById("statsContent"),
-  statsCloseBtn: document.getElementById("statsCloseBtn"),
-  statsCancelBtn: document.getElementById("statsCancelBtn"),
+  exportStatsBtn: document.getElementById("exportStatsBtn"),
+  exportSnapshotsBtn: document.getElementById("exportSnapshotsBtn"),
   // 模式切换
   modeBtns: document.querySelectorAll(".mode-btn"),
   // 报价结果中需要模式控制的行
@@ -2635,6 +2633,27 @@ function resetAllLocalSettings() {
   setTimeout(() => location.reload(), 600);
 }
 
+/**
+ * v9.4：一键恢复默认并清除缓存。
+ * 在 resetAllLocalSettings 基础上，额外删除报价历史（history）与本地快照（snapshots）。
+ */
+function resetAllAndClearCache() {
+  const confirmMsg = "⚠️ 确定要恢复默认并清除缓存吗？\n\n将清除所有本地配置（报价表组 / 纸张 / 工艺 / 吊绳 / 邮费 / 客户等级 / 公司信息 / 个人偏好），并删除报价历史与本地快照。\n\n此操作会彻底清空业务数据，不可撤销，完成后页面将自动刷新。";
+  if (!confirm(confirmMsg)) return;
+
+  const keysToWipe = [
+    "paperConfig", "craftConfig", "ropeConfig", "shippingConfig",
+    "customerLevels", "appProfile", "priceLists", "currentPriceListId",
+    "history", "snapshots"
+  ];
+  keysToWipe.forEach(k => {
+    try { localStorage.removeItem("tagPricing_" + k); } catch (e) { /* 忽略 */ }
+  });
+
+  showToast("已恢复默认并清除缓存，正在刷新…");
+  setTimeout(() => location.reload(), 600);
+}
+
 function loadProfileToUI() {
   if (els.companyName) els.companyName.value = APP_PROFILE.companyName || "";
   if (els.companyPhone) els.companyPhone.value = APP_PROFILE.companyPhone || "";
@@ -2739,7 +2758,6 @@ function verifyImportIntegrity(data) {
 function switchTab(tabName) {
   els.tabs.forEach(t => t.classList.toggle("active", t.dataset.tab === tabName));
   els.tabPanels.forEach(p => p.classList.toggle("active", p.id === "panel-" + tabName));
-  if (tabName === "snapshot") renderSnapshots();
   if (tabName === "history") renderHistory();
 }
 
@@ -2917,6 +2935,7 @@ function saveCurrentQuote() {
   }
 
   renderHistory();
+  renderStats();
   showToast(`报价已保存：${record.title}`);
 }
 
@@ -3029,18 +3048,24 @@ function renderStatBarChart(items, unit) {
   }).join("");
 }
 
+const PROFIT_BRACKETS = [
+  { label: "亏损", test: v => v < 0 },
+  { label: "0~50 元", test: v => v >= 0 && v < 50 },
+  { label: "50~100 元", test: v => v >= 50 && v < 100 },
+  { label: "100~200 元", test: v => v >= 100 && v < 200 },
+  { label: "200 元以上", test: v => v >= 200 }
+];
+
+function computeProfitBrackets(profits) {
+  return PROFIT_BRACKETS.map(bracket => ({
+    label: bracket.label,
+    count: profits.filter(p => bracket.test(p.profit)).length
+  }));
+}
+
 function renderProfitBars(profits) {
-  const brackets = [
-    { label: "亏损", test: v => v < 0 },
-    { label: "0~50 元", test: v => v >= 0 && v < 50 },
-    { label: "50~100 元", test: v => v >= 50 && v < 100 },
-    { label: "100~200 元", test: v => v >= 100 && v < 200 },
-    { label: "200 元以上", test: v => v >= 200 }
-  ];
-  const counts = brackets.map(bracket => profits.filter(p => bracket.test(p.profit)).length);
-  const items = brackets.map((bracket, i) => ({ label: bracket.label, count: counts[i] }));
   if (!profits.length) return '<div class="empty-state">暂无有效利润数据</div>';
-  return renderStatBarChart(items, "单");
+  return renderStatBarChart(computeProfitBrackets(profits), "单");
 }
 
 function renderStats() {
@@ -3106,23 +3131,42 @@ function renderStats() {
     </div>`;
 }
 
-function openStatsDialog() {
-  if (!els.statsDialog) return;
-  renderStats();
-  if (typeof els.statsDialog.showModal === "function") {
-    els.statsDialog.showModal();
-  } else {
-    els.statsDialog.setAttribute("open", "");
+// v9.4：导出本地快照（带完整性签名，仅下载到本机）
+function exportSnapshotSet() {
+  const list = getSnapshots();
+  if (!list.length) {
+    showToast("暂无快照可导出");
+    return;
   }
+  const payload = signExport({ version: "9.4.1", count: list.length, snapshots: list }, "snapshots-export");
+  downloadJson(payload, "KOKALabel快照_" + formatDateFile() + ".json");
+  showToast("快照已导出");
 }
 
-function closeStatsDialog() {
-  if (!els.statsDialog) return;
-  if (typeof els.statsDialog.close === "function" && els.statsDialog.open) {
-    els.statsDialog.close();
-  } else {
-    els.statsDialog.removeAttribute("open");
+// v9.4：导出统计报表（月度报价次数 / 热销尺寸 / 利润分布，一个工作簿三个工作表）
+function exportStatsReport() {
+  const stats = computeStats();
+  if (!stats.totalCount) {
+    showToast("暂无数据可导出（请先保存报价记录）");
+    return;
   }
+  if (typeof XLSX === "undefined") {
+    showToast("无法导出：缺少 Excel 组件");
+    return;
+  }
+  const brackets = computeProfitBrackets(stats.profits);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(
+    [["月份", "报价次数"]].concat(stats.months.map(m => [safeExcelText(m.label), m.count]))
+  ), "月度报价次数");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(
+    [["展开尺寸(宽×长,mm)", "报价次数"]].concat(stats.sizes.map(s => [safeExcelText(s.label), s.count]))
+  ), "热销尺寸");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(
+    [["利润区间", "报价单数"]].concat(brackets.map(b => [safeExcelText(b.label), b.count]))
+  ), "利润分布");
+  XLSX.writeFile(wb, "KOKALabel统计报表_" + formatDateFile() + ".xlsx");
+  showToast("统计报表已导出");
 }
 
 function renderHistory() {
@@ -3388,6 +3432,7 @@ function clearHistory() {
   if (!confirm("确定清空所有报价历史？")) return;
   saveHistory([]);
   renderHistory();
+  renderStats();
   closeHistoryDetail();
   showToast("历史已清空");
 }
@@ -3421,8 +3466,8 @@ function setLocalBackupStatus(html, isError) {
 }
 
 function exportLocalBackup() {
-const payload = {
-    version: "9.4.0",
+  const payload = {
+    version: "9.4.1",
     kind: "local-backup",
     exportAt: new Date().toISOString(),
     priceLists: PRICE_LISTS,
@@ -3636,6 +3681,7 @@ function importLocalBackup(file) {
       loadProfileToUI();
       renderSnapshots();
       renderHistory();
+      renderStats();
       onCalculate();
       setLocalBackupStatus(`已从本地文件恢复：${escapeHtml(file.name)}（${new Date().toLocaleString()}）`, false);
       showToast(integrityStatus === "legacy" ? "本地备份已恢复（旧版文件，无完整性校验）" : "本地备份已恢复");
@@ -3654,8 +3700,8 @@ function importLocalBackup(file) {
 
 // -------------------- 导入 / 导出完整配置 --------------------
 function exportFullData() {
-const payload = {
-    version: "9.4.0",
+  const payload = {
+    version: "9.4.1",
     kind: "full-config",
     exportAt: new Date().toISOString(),
     priceLists: PRICE_LISTS,
@@ -3736,6 +3782,7 @@ function importFullData(file) {
       loadProfileToUI();
       renderSnapshots();
       renderHistory();
+      renderStats();
       onCalculate();
       showToast(integrityStatus === "legacy" ? "配置导入成功（旧版文件，无完整性校验）" : "配置导入成功");
     } catch (err) {
@@ -4648,6 +4695,7 @@ function switchPage(pageName) {
     loadProfileToUI();
     renderSnapshots();
     renderHistory();
+    renderStats();
   }
 }
 
@@ -4775,21 +4823,13 @@ function bindEvents() {
     });
   }
 
-  // v9.4：统计报表事件
-  if (els.openStatsBtn) {
-    els.openStatsBtn.addEventListener("click", openStatsDialog);
-    els.openStatsBtn.addEventListener("keydown", e => {
-      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openStatsDialog(); }
-    });
-  }
-  [els.statsCloseBtn, els.statsCancelBtn].forEach(btn => {
-    if (btn) btn.addEventListener("click", closeStatsDialog);
-  });
-  if (els.statsDialog) {
-    els.statsDialog.addEventListener("click", event => {
-      if (event.target === els.statsDialog) closeStatsDialog();
-    });
-  }
+  // v9.4：快照与统计报表（导出）
+  if (els.exportStatsBtn) els.exportStatsBtn.addEventListener("click", exportStatsReport);
+  if (els.exportSnapshotsBtn) els.exportSnapshotsBtn.addEventListener("click", exportSnapshotSet);
+
+  // v9.4：一键恢复默认并清除缓存（删除报价历史与本地快照）
+  const fullResetBtn = document.getElementById("fullResetAndClearCacheBtn");
+  if (fullResetBtn) fullResetBtn.addEventListener("click", resetAllAndClearCache);
 
   // v8.0：邮费输入对话框事件
   if (els.shippingWeightConfirm) {

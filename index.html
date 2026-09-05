@@ -6,11 +6,11 @@
   <meta name="googlebot" content="noindex, nofollow">
   <!-- P0 安全：CSP 策略（v7.9：SheetJS 已本地化，script-src 仅允许 'self'，离线双击打开亦可用） -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';">
-<title>KOKALabel报价系统 v9.4.0</title>
-  <link rel="icon" type="image/x-icon" href="favicon.ico?v=9.4.0">
-  <link rel="icon" type="image/png" href="favicon.png?v=9.4.0">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=9.4.0">
-  <link rel="stylesheet" href="css/style.css?v=9.4.0">
+<title>KOKALabel报价系统 v9.4.1</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico?v=9.4.1">
+  <link rel="icon" type="image/png" href="favicon.png?v=9.4.1">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=9.4.1">
+  <link rel="stylesheet" href="css/style.css?v=9.4.1">
 </head>
 <body>
   <!-- 顶部导航 -->
@@ -830,12 +830,12 @@
       <div class="card">
         <h2 class="card-title">数据管理</h2>
         <div class="tabs">
-          <button class="tab active" data-tab="snapshot">本地快照</button>
+          <button class="tab active" data-tab="config">价格配置</button>
           <button class="tab" data-tab="history">报价历史</button>
           <button class="tab" data-tab="cloud">云同步 <span class="placeholder-badge">占位</span></button>
         </div>
 
-        <div class="tab-panel active" id="panel-snapshot">
+        <div class="tab-panel active" id="panel-config">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
             <div>
               <h3 style="font-size:14px;color:var(--brand-dark);margin:0;">价格配置导入 / 导出</h3>
@@ -893,20 +893,6 @@
             </div>
             <div id="localBackupStatus" style="margin-top:10px;font-size:13px;color:var(--text-secondary);"></div>
           </div>
-          <div style="margin-top:18px;">
-            <h4 style="font-size:13px;color:var(--brand-dark);margin-bottom:8px;">本地快照列表</h4>
-            <table class="data-table" id="snapshotTable" style="display: none;">
-              <thead>
-                <tr><th>快照名</th><th>时间</th><th>操作</th></tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-            <div class="empty-state" id="snapshotEmpty" style="display: block;">暂无快照，点击下方按钮创建。</div>
-            <div class="btn-group">
-              <button class="btn secondary sm" id="createSnapshotBtn">+ 创建当前快照</button>
-              <button class="btn danger sm" id="clearSnapshotBtn">清空快照</button>
-            </div>
-          </div>
         </div>
 
         <div class="tab-panel" id="panel-history">
@@ -957,6 +943,34 @@
       </div>
 
       <div class="card">
+        <h2 class="card-title">快照与统计报表</h2>
+        <div class="stats-snapshot-layout">
+          <div class="snapshot-box">
+            <h4 style="font-size:13px;color:var(--brand-dark);margin:0 0 8px;">本地快照列表</h4>
+            <table class="data-table" id="snapshotTable" style="display: none;">
+              <thead>
+                <tr><th>快照名</th><th>时间</th><th>操作</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+            <div class="empty-state" id="snapshotEmpty" style="display: block;">暂无快照，点击下方按钮创建。</div>
+            <div class="btn-group">
+              <button class="btn secondary sm" id="createSnapshotBtn">+ 创建当前快照</button>
+              <button class="btn danger sm" id="clearSnapshotBtn">清空快照</button>
+              <button class="btn sm" id="exportSnapshotsBtn">导出快照</button>
+            </div>
+          </div>
+          <div class="stats-box">
+            <div class="stats-box-header">
+              <h4 style="font-size:13px;color:var(--brand-dark);margin:0;">统计报表</h4>
+              <button class="btn sm" id="exportStatsBtn">导出统计报表</button>
+            </div>
+            <div id="statsContent" class="stats-content"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
         <h2 class="card-title">更多功能</h2>
         <div class="feature-grid">
           <div class="feature-card" data-toast="客户管理功能占位">
@@ -968,11 +982,6 @@
             <div class="feature-icon">📦</div>
             <div class="feature-title">订单管理</div>
             <div class="feature-desc">从报价一键生成订单、状态跟踪</div>
-          </div>
-          <div class="feature-card" id="openStatsBtn" role="button" tabindex="0" title="打开统计报表（数据仅保存在本地）">
-            <div class="feature-icon">📊</div>
-            <div class="feature-title">统计报表</div>
-            <div class="feature-desc">月度报价次数、热销尺寸、利润分析</div>
           </div>
           <div class="feature-card" data-toast="价格趋势功能占位">
             <div class="feature-icon">📈</div>
@@ -994,7 +1003,7 @@
           <div class="setting-row">
             <div class="setting-info">
               <div class="setting-label">当前版本</div>
-              <div class="setting-desc">KOKALabel报价系统 v9.4.0</div>
+              <div class="setting-desc">KOKALabel报价系统 v9.4.1</div>
             </div>
             <div class="setting-control">
               <span class="placeholder-badge">正式版</span>
@@ -1025,11 +1034,20 @@
         <h2 class="card-title" style="color: var(--danger); border-bottom-color: var(--danger-border);">全局恢复</h2>
         <div class="setting-row">
           <div class="setting-info">
-            <div class="setting-label" style="color: var(--danger);">一键恢复全局默认设置</div>
-            <div class="setting-desc">清除浏览器中所有本地配置（纸张 / 工艺 / 吊绳 / 客户等级 / 公司信息 / 个人偏好），恢复到出厂默认状态。报价历史与本地快照不受影响。操作不可撤销。</div>
+            <div class="setting-label" style="color: var(--danger);">一键恢复全局默认设置（保留数据）</div>
+            <div class="setting-desc">恢复到出厂默认状态（纸张 / 工艺 / 吊绳 / 邮费 / 客户等级 / 公司信息 / 个人偏好）。报价历史与本地快照不受影响。操作不可撤销。</div>
           </div>
           <div class="setting-control">
             <button class="btn danger sm" id="resetAllSettingsBtn">一键恢复全局默认</button>
+          </div>
+        </div>
+        <div class="setting-row" style="border-top:1px solid var(--danger-border);padding-top:16px;">
+          <div class="setting-info">
+            <div class="setting-label" style="color: var(--danger);">一键恢复默认并清除缓存</div>
+            <div class="setting-desc">恢复到出厂默认状态，并删除报价历史与本地快照（清空缓存）。此操作会彻底清空业务数据，不可撤销。</div>
+          </div>
+          <div class="setting-control">
+            <button class="btn danger sm" id="fullResetAndClearCacheBtn">恢复默认并清除缓存</button>
           </div>
         </div>
       </div>
@@ -1098,24 +1116,6 @@
     </div>
   </dialog>
 
-  <!-- v9.4：统计报表（数据仅来自本地保存的报价历史，不上传云端） -->
-  <dialog class="history-dialog" id="statsDialog" aria-labelledby="statsTitle">
-    <div class="history-dialog-shell">
-      <header class="history-dialog-header">
-        <div>
-          <span class="history-dialog-kicker">基于本地已保存的报价记录</span>
-          <h2 id="statsTitle">统计报表</h2>
-        </div>
-        <button type="button" class="history-dialog-close" id="statsCloseBtn" aria-label="关闭统计报表">×</button>
-      </header>
-      <div class="history-dialog-content stats-content" id="statsContent"></div>
-      <footer class="history-dialog-footer">
-        <span class="stats-footer-note">数据仅保存在本机浏览器，绝不上传</span>
-        <button type="button" class="btn secondary" id="statsCancelBtn">关闭</button>
-      </footer>
-    </div>
-  </dialog>
-
   <!-- 提示条 -->
   <div class="toast" id="toast"></div>
 
@@ -1131,7 +1131,7 @@
   </div>
 
   <!-- v7.9: SheetJS 本地化（离线双击打开亦可导出/导入 Excel），先于业务脚本加载，XLSX 全局可用 -->
-<script src="js/vendor/xlsx.full.min.js?v=9.4.0"></script>
-  <script src="js/data.js?v=9.4.0"></script>
-  <script src="js/app.js?v=9.4.0"></script>
+<script src="js/vendor/xlsx.full.min.js?v=9.4.1"></script>
+  <script src="js/data.js?v=9.4.1"></script>
+  <script src="js/app.js?v=9.4.1"></script>
 </body></html>

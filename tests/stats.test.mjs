@@ -50,7 +50,7 @@ function buildStatsApi(history) {
   vm.createContext(context);
 
   const source = `${dataSource}\n${appSource.slice(0, boundary)}\n` +
-    "globalThis.__statsApi = { parseStatSize, collectRecordSizes, computeStats, renderStatBarChart, renderProfitBars };";
+    "globalThis.__statsApi = { parseStatSize, collectRecordSizes, computeStats, renderStatBarChart, renderProfitBars, computeProfitBrackets };";
   vm.runInContext(source, context, { filename: "stats.bundle.js" });
   return context.__statsApi;
 }
@@ -118,4 +118,17 @@ test("renderProfitBars 按利润区间分桶", () => {
   const html = api.renderProfitBars(profits);
   assert.match(html, /亏损/);
   assert.match(html, /200 元以上/);
+});
+
+test("computeProfitBrackets 按区间正确分桶", () => {
+  const api = buildStatsApi([]);
+  const profits = [{ profit: -5 }, { profit: 0 }, { profit: 49 }, { profit: 50 }, { profit: 150 }, { profit: 300 }];
+  const brackets = JSON.parse(JSON.stringify(api.computeProfitBrackets(profits)));
+  assert.equal(JSON.stringify(brackets), JSON.stringify([
+    { label: "亏损", count: 1 },
+    { label: "0~50 元", count: 2 },
+    { label: "50~100 元", count: 1 },
+    { label: "100~200 元", count: 1 },
+    { label: "200 元以上", count: 1 }
+  ]));
 });

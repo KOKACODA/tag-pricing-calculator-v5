@@ -1,4 +1,4 @@
-/* KOKALabel报价系统 v9.4.0 - 样式表 */
+/* KOKALabel报价系统 v9.4.1 - 样式表 */
 
 /* ===================== 全局变量与重置 ===================== */
     :root {
@@ -2101,6 +2101,32 @@
       display: flex;
       flex-direction: column;
       gap: 16px;
+    }
+
+    .stats-snapshot-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    .stats-snapshot-layout .stats-content {
+      max-height: 520px;
+      overflow-y: auto;
+    }
+
+    .stats-box-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    @media (max-width: 920px) {
+      .stats-snapshot-layout {
+        grid-template-columns: 1fr;
+      }
     }
 
     .stat-panel {
